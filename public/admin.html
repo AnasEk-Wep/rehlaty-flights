@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>لوحة التحكم</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>
+  tailwind.config = { theme: { extend: {
+    fontFamily: { sans: ['"IBM Plex Sans Arabic"', 'system-ui', 'sans-serif'] },
+    colors: {
+      navy: { 900: '#0F172A', 800: '#1E293B' },
+      brand: { 50: '#EFF6FF', 100: '#DBEAFE', 600: '#2563EB', 700: '#1D4ED8' },
+      accent: { 50: '#FFFBEB', 500: '#F59E0B', 600: '#B45309' },
+      ok: { 50: '#ECFDF5', 600: '#10B981', 700: '#047857' },
+      ink: { DEFAULT: '#0F172A', muted: '#475569', subtle: '#94A3B8' },
+      line: '#E2E8F0', canvas: '#F8FAFC',
+    },
+    boxShadow: { card: '0 1px 2px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.05)' },
+  } } };
+</script>
+<style>
+  /* ===== الطباعة: نطبع التذكرة فقط ===== */
+  #ticket { display: none; }
+  @media print {
+    @page { size: A4; margin: 12mm; }
+    body { background: #fff !important; }
+    body > *:not(#ticket) { display: none !important; }
+    #ticket { display: block; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body class="min-h-screen bg-canvas font-sans leading-relaxed text-ink antialiased">
+
+<header class="bg-navy-900 text-white">
+  <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 md:px-8">
+    <div class="flex items-center gap-2">
+      <img src="/favicon.svg" alt="" width="36" height="36" class="h-9 w-9">
+      <span class="text-lg font-bold"><span data-site-name></span> <span class="text-sm font-medium text-white/60">· لوحة التحكم</span></span>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="/" class="text-sm text-white/70 hover:text-white">الموقع</a>
+      <button id="settingsBtn" class="hidden rounded-lg bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20">⚙ الإعدادات</button>
+      <button id="logout" class="hidden rounded-lg bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20">خروج</button>
+    </div>
+  </div>
+</header>
+
+<!-- Login -->
+<section id="login" class="mx-auto mt-20 max-w-sm px-4">
+  <form id="loginForm" class="rounded-2xl bg-white p-6 shadow-card">
+    <h1 class="text-xl font-bold">دخول لوحة التحكم</h1>
+    <p class="mt-1 text-sm text-ink-muted">أدخل رمز الإدارة (ADMIN_TOKEN) المضبوط في السيرفر.</p>
+    <input id="token" type="password" required autocomplete="current-password" placeholder="رمز الإدارة"
+      class="mt-4 w-full rounded-xl border border-line px-4 py-3 text-sm outline-none focus:border-brand-600">
+    <p id="loginErr" class="mt-2 hidden text-xs text-red-600"></p>
+    <button class="mt-4 w-full rounded-xl bg-brand-600 py-3 text-sm font-bold text-white hover:bg-brand-700">دخول</button>
+  </form>
+</section>
+
+<!-- Dashboard -->
+<main id="dash" class="mx-auto hidden max-w-7xl px-4 py-8 md:px-8">
+  <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold">الحجوزات</h1>
+      <p id="updated" class="text-sm text-ink-muted"></p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <input id="search" type="search" placeholder="ابحث برقم الحجز أو الاسم أو الهاتف"
+        class="w-72 rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-brand-600">
+      <button id="exportCsv" class="flex items-center gap-1.5 rounded-lg border border-ok-600 bg-white px-4 py-2 text-sm font-semibold text-ok-700 hover:bg-ok-50">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        تصدير Excel
+      </button>
+      <button id="refresh" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">تحديث</button>
+    </div>
+  </div>
+
+  <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="rounded-2xl bg-white p-5 shadow-card"><p class="text-sm text-ink-muted">بانتظار التأكيد</p><p id="sPending" class="mt-1 text-3xl font-bold text-brand-700">0</p></div>
+    <div class="rounded-2xl bg-white p-5 shadow-card"><p class="text-sm text-ink-muted">الحجوزات الفعّالة</p><p id="sActive" class="mt-1 text-3xl font-bold">0</p><p class="text-xs text-ink-subtle"><span id="sPax">0</span> مسافر</p></div>
+    <div class="rounded-2xl bg-white p-5 shadow-card"><p class="text-sm text-ink-muted">المبالغ المحصّلة</p><p class="mt-1 text-3xl font-bold text-ok-700"><span id="sPaid">0</span> <span class="text-base font-medium text-ink-muted">د.ل</span></p></div>
+    <div class="rounded-2xl bg-white p-5 shadow-card"><p class="text-sm text-ink-muted">مبالغ لم تُحصّل بعد</p><p class="mt-1 text-3xl font-bold text-accent-600"><span id="sDue">0</span> <span class="text-base font-medium text-ink-muted">د.ل</span></p></div>
+  </div>
+
+  <!-- filter tabs -->
+  <div id="tabs" class="mb-4 flex flex-wrap gap-2 text-sm font-semibold">
+    <button data-filter="all"       class="tab rounded-full px-4 py-1.5">الكل <span class="cnt"></span></button>
+    <button data-filter="pending"   class="tab rounded-full px-4 py-1.5">بانتظار التأكيد <span class="cnt"></span></button>
+    <button data-filter="confirmed" class="tab rounded-full px-4 py-1.5">مؤكدة <span class="cnt"></span></button>
+    <button data-filter="unpaid"    class="tab rounded-full px-4 py-1.5">غير مدفوعة <span class="cnt"></span></button>
+    <button data-filter="cancelled" class="tab rounded-full px-4 py-1.5">ملغاة <span class="cnt"></span></button>
+  </div>
+
+  <div class="overflow-x-auto rounded-2xl bg-white shadow-card">
+    <table class="w-full min-w-[1080px] text-right text-sm">
+      <thead class="border-b border-line bg-canvas text-xs font-semibold text-ink-muted">
+        <tr>
+          <th class="px-4 py-3">رقم الحجز</th>
+          <th class="px-4 py-3">التاريخ</th>
+          <th class="px-4 py-3">الرحلة</th>
+          <th class="px-4 py-3">المسافرون</th>
+          <th class="px-4 py-3">الدفع</th>
+          <th class="px-4 py-3">الحالة</th>
+          <th class="px-4 py-3">الإجمالي</th>
+          <th class="px-4 py-3">إجراءات</th>
+        </tr>
+      </thead>
+      <tbody id="rows" class="divide-y divide-line"></tbody>
+    </table>
+    <p id="empty" class="hidden p-10 text-center text-ink-muted">لا توجد حجوزات.</p>
+  </div>
+</main>
+
+<!-- ================= الإعدادات ================= -->
+<div id="settingsModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-navy-900/60 p-4" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+  <form id="settingsForm" class="w-full max-w-md rounded-2xl bg-white p-6 shadow-card" novalidate>
+    <div class="mb-4 flex items-center justify-between">
+      <h2 id="setTitle" class="text-xl font-bold">إعدادات المكتب</h2>
+      <button type="button" data-set-close class="text-2xl leading-none text-ink-muted" aria-label="إغلاق">×</button>
+    </div>
+    <label class="mb-5 block">
+      <span class="mb-1 block text-sm font-semibold">اسم الموقع / المكتب</span>
+      <input id="nameInput" type="text" maxlength="60" required placeholder="مثال: مكتب النور للسفر والسياحة"
+        class="w-full rounded-xl border border-line px-4 py-3 text-sm outline-none focus:border-brand-600">
+      <span class="mt-1 block text-xs text-ink-muted">يظهر في أعلى الموقع، وعنوان التبويب، والتذكرة المطبوعة، ورسائل واتساب.</span>
+    </label>
+    <label class="block">
+      <span class="mb-1 block text-sm font-semibold">رقم واتساب المكتب المعتمد</span>
+      <input id="waInput" type="tel" dir="ltr" maxlength="20" placeholder="0912345678 أو +218912345678"
+        class="w-full rounded-xl border border-line px-4 py-3 text-right text-sm tracking-wider outline-none focus:border-brand-600">
+    </label>
+    <p class="mt-2 text-xs leading-relaxed text-ink-muted">يظهر للزبائن في زر «مراسلة عبر واتساب» بعد الحجز وفي زر التواصل. اتركه فارغاً ليعمل الزر كـ«مشاركة الحجز عبر واتساب» (يختار الزبون جهة الاتصال بنفسه).</p>
+    <p id="waStatus" class="mt-3 rounded-lg bg-canvas p-3 text-sm"></p>
+    <p id="setErr" class="mt-2 hidden text-xs text-red-600"></p>
+    <div class="mt-5 flex flex-wrap items-center justify-between gap-2">
+      <a id="waTest" href="#" target="_blank" rel="noopener" class="hidden text-sm font-semibold text-ok-700 hover:underline">اختبار الرقم على واتساب ↗</a>
+      <div class="flex gap-2 mr-auto">
+        <button type="button" id="waClear" class="rounded-lg px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">إزالة الرقم</button>
+        <button id="waSave" class="rounded-lg bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">حفظ</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- toast -->
+<div id="toast" class="pointer-events-none fixed bottom-6 left-1/2 z-50 hidden -translate-x-1/2 rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-card" role="status"></div>
+
+<!-- ================= TICKET (للطباعة فقط) ================= -->
+<div id="ticket" class="font-sans text-ink"></div>
+
+<script>
+  const $ = s => document.querySelector(s);
+  const fmt = n => Number(n).toLocaleString('en-US');
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const maskPassport = p => p.length > 4 ? p.slice(0, 2) + '•'.repeat(p.length - 4) + p.slice(-2) : p;
+  const utc = s => !s ? null : new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z'); // يقبل ISO أو صيغة SQLite
+  const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('ar-LY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+
+  const PAY = { sadad: 'سداد', tadawul: 'تداول', cod: 'كاش عند الاستلام' };
+  const PAY_STATUS = {
+    pending_cod:     ['بانتظار الكاش', 'bg-accent-50 text-accent-600'],
+    pending_payment: ['بانتظار الدفع', 'bg-accent-50 text-accent-600'],
+    paid:            ['مدفوع',         'bg-ok-50 text-ok-700'],
+  };
+  const BOOKING_STATUS = {
+    pending:   ['بانتظار التأكيد', 'bg-brand-50 text-brand-700'],
+    confirmed: ['مؤكد',            'bg-ok-50 text-ok-700'],
+    cancelled: ['ملغي',            'bg-red-50 text-red-700'],
+  };
+  const badge = ([label, cls]) => `<span class="inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${cls}">${label}</span>`;
+
+  // التوكن يُحفظ للجلسة فقط
+  const store = {
+    get: () => { try { return sessionStorage.getItem('tkr_admin') || ''; } catch { return ''; } },
+    set: v => { try { sessionStorage.setItem('tkr_admin', v); } catch {} },
+    clear: () => { try { sessionStorage.removeItem('tkr_admin'); } catch {} },
+  };
+  let token = store.get(), all = [], filter = 'all';
+
+  async function api(path, opts = {}) {
+    const res = await fetch(path, {
+      ...opts,
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) throw new Error('رمز الإدارة غير صحيح');
+    if (!res.ok) throw new Error(data.error || 'حدث خطأ');
+    return data;
+  }
+
+  function toast(msg, ok = true) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.className = `pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-card ${ok ? 'bg-navy-900' : 'bg-red-600'}`;
+    clearTimeout(toast.t);
+    toast.t = setTimeout(() => t.classList.add('hidden'), 2800);
+  }
+
+  async function load() {
+    const data = await api('/api/bookings?limit=500');
+    all = data.bookings || data.items || [];
+    $('#updated').textContent = `آخر تحديث: ${new Date().toLocaleTimeString('ar-LY')} · ${data.total} حجز`;
+    render();
+  }
+
+  // ===== Render =====
+  const FILTERS = {
+    all:       () => true,
+    pending:   b => b.booking_status === 'pending',
+    confirmed: b => b.booking_status === 'confirmed',
+    unpaid:    b => b.booking_status !== 'cancelled' && b.status !== 'paid',
+    cancelled: b => b.booking_status === 'cancelled',
+  };
+
+  function actionsFor(b) {
+    const btn = (action, label, cls) =>
+      `<button data-action="${action}" data-ref="${esc(b.ref)}" class="whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ${cls}">${label}</button>`;
+    const out = [];
+    const cancelled = b.booking_status === 'cancelled';
+    if (b.booking_status === 'pending') out.push(btn('confirm', '✓ تأكيد الحجز', 'bg-ok-600 text-white hover:bg-[#059669]'));
+    if (!cancelled && b.status !== 'paid') out.push(btn('mark_paid', '💵 تم استلام الدفع', 'bg-ok-50 text-ok-700 hover:bg-ok-600 hover:text-white'));
+    if (!cancelled) out.push(btn('print', '🖨 طباعة التذكرة', 'bg-canvas text-ink hover:bg-line'));
+    if (!cancelled) out.push(btn('cancel', 'إلغاء', 'text-red-600 hover:bg-red-50'));
+    return out.length ? `<div class="flex flex-wrap gap-1.5">${out.join('')}</div>` : '<span class="text-xs text-ink-subtle">—</span>';
+  }
+
+  function render() {
+    const active = all.filter(b => b.booking_status !== 'cancelled');
+    $('#sPending').textContent = fmt(all.filter(FILTERS.pending).length);
+    $('#sActive').textContent = fmt(active.length);
+    $('#sPax').textContent = fmt(active.reduce((s, b) => s + b.pax_count, 0));
+    $('#sPaid').textContent = fmt(active.filter(b => b.status === 'paid').reduce((s, b) => s + b.total, 0));
+    $('#sDue').textContent = fmt(active.filter(b => b.status !== 'paid').reduce((s, b) => s + b.total, 0));
+
+    document.querySelectorAll('#tabs .tab').forEach(t => {
+      const on = t.dataset.filter === filter;
+      t.className = 'tab rounded-full px-4 py-1.5 ' + (on ? 'bg-navy-900 text-white' : 'bg-white text-ink-muted shadow-card hover:text-ink');
+      t.querySelector('.cnt').textContent = `(${all.filter(FILTERS[t.dataset.filter]).length})`;
+    });
+
+    const q = $('#search').value.trim().toLowerCase();
+    const list = all.filter(FILTERS[filter]).filter(b => !q ||
+      b.ref.toLowerCase().includes(q) || (b.phone || '').includes(q) || (b.contact_phone || '').includes(q) ||
+      b.passengers.some(p => p.fullName.toLowerCase().includes(q)));
+
+    $('#empty').classList.toggle('hidden', list.length > 0);
+    $('#rows').innerHTML = list.map(b => {
+      const d = utc(b.created_at);
+      const cancelled = b.booking_status === 'cancelled';
+      return `<tr class="align-top ${cancelled ? 'bg-canvas/60 text-ink-subtle' : 'hover:bg-canvas/60'}">
+        <td class="whitespace-nowrap px-4 py-3 font-bold ${cancelled ? 'line-through' : 'text-brand-700'}" dir="ltr">${esc(b.ref)}</td>
+        <td class="px-4 py-3 text-ink-muted">${d.toLocaleDateString('ar-LY')}<br><span class="text-xs">${d.toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' })}</span></td>
+        <td class="px-4 py-3"><span class="font-semibold">${esc(b.airline)}</span><br><span class="whitespace-nowrap text-xs text-ink-muted" dir="ltr">${esc(b.origin)} ${esc(b.depart_time)} → ${esc(b.destination)} ${esc(b.arrive_time)}</span></td>
+        <td class="px-4 py-3">${b.contact_phone ? `<div class="mb-1 text-xs font-semibold text-brand-700" dir="ltr">📞 ${esc(b.contact_phone)}</div>` : ''}${b.passengers.map(p => `<div>${esc(p.fullName)} <span class="text-xs text-ink-subtle" dir="ltr" title="${esc(p.passport)}">${esc(maskPassport(p.passport))}</span></div>`).join('')}</td>
+        <td class="px-4 py-3">${PAY[b.payment_method] || esc(b.payment_method)}${b.phone ? `<br><span class="text-xs text-ink-muted" dir="ltr">محفظة: ${esc(b.phone)}</span>` : ''}</td>
+        <td class="space-y-1 px-4 py-3">${badge(BOOKING_STATUS[b.booking_status] || [b.booking_status, 'bg-canvas'])}<br>${badge(cancelled && b.status === 'paid' ? ['مدفوع · يلزم استرداد', 'bg-red-50 text-red-700'] : (PAY_STATUS[b.status] || [b.status, 'bg-canvas']))}</td>
+        <td class="px-4 py-3 font-bold">${fmt(b.total)} <span class="text-xs font-medium text-ink-muted">د.ل</span></td>
+        <td class="px-4 py-3">${actionsFor(b)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ===== Actions =====
+  const ACTION_MSG = { confirm: 'تم تأكيد الحجز', cancel: 'تم إلغاء الحجز', mark_paid: 'تم تسجيل استلام الدفع' };
+
+  $('#rows').addEventListener('click', async e => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const { action, ref } = btn.dataset;
+    if (action === 'print') return printTicket(ref, btn);
+    if (action === 'cancel' && !confirm(`هل تريد إلغاء الحجز ${ref}؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+    if (action === 'mark_paid') {
+      const b = all.find(x => x.ref === ref);
+      if (!confirm(`تأكيد استلام مبلغ ${fmt(b.total)} د.ل للحجز ${ref}؟`)) return;
+    }
+
+    btn.disabled = true; btn.style.opacity = '.5';
+    try {
+      const { booking } = await api(`/api/bookings/${encodeURIComponent(ref)}/status`, {
+        method: 'PATCH', body: JSON.stringify({ action }),
+      });
+      all = all.map(b => b.ref === ref ? booking : b);
+      render();
+      toast(`${ACTION_MSG[action]} · ${ref}`);
+    } catch (err) {
+      toast(err.message, false);
+      btn.disabled = false; btn.style.opacity = '';
+    }
+  });
+
+  // ===== Ticket / PDF =====
+  async function printTicket(ref, btn) {
+    btn.disabled = true;
+    try {
+      const { booking: b } = await api(`/api/bookings/${encodeURIComponent(ref)}`); // أحدث نسخة من السيرفر
+      $('#ticket').innerHTML = ticketHTML(b);
+      const prevTitle = document.title;
+      document.title = `تذكرة-${b.ref}`; // يصبح اسم ملف PDF الافتراضي
+      setTimeout(() => { window.print(); document.title = prevTitle; }, 150);
+    } catch (err) {
+      toast(err.message, false);
+    } finally { btn.disabled = false; }
+  }
+
+  function ticketHTML(b) {
+    const issued = new Date().toLocaleString('ar-LY', { dateStyle: 'medium', timeStyle: 'short' });
+    const row = (k, v, strong) => `<tr><td style="padding:6px 0;color:#475569">${k}</td><td style="padding:6px 0;text-align:left;${strong ? 'font-weight:700;font-size:16px' : ''}">${v}</td></tr>`;
+    return `
+    <div style="border:1px solid #E2E8F0;border-radius:16px;overflow:hidden">
+      <!-- header -->
+      <div style="background:#0F172A;color:#fff;padding:20px 24px;display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:10px">
+          <img src="/favicon.svg" alt="" width="40" height="40" style="width:40px;height:40px">
+          <div><div style="font-size:20px;font-weight:700">${esc(SITE_NAME)}</div><div style="font-size:12px;opacity:.7">ملخص الحجز · Booking Summary</div></div>
+        </div>
+        <div style="text-align:left">
+          <div style="font-size:11px;opacity:.7">رقم الحجز</div>
+          <div dir="ltr" style="font-size:22px;font-weight:700;letter-spacing:3px">${esc(b.ref)}</div>
+        </div>
+      </div>
+
+      <div style="padding:24px">
+        <div style="display:flex;gap:8px;margin-bottom:20px">
+          ${badge(BOOKING_STATUS[b.booking_status] || [b.booking_status, ''])}
+          ${badge(PAY_STATUS[b.status] || [b.status, ''])}
+        </div>
+
+        <!-- flight -->
+        <div style="border:1px solid #E2E8F0;border-radius:12px;padding:18px;margin-bottom:20px">
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:#475569;margin-bottom:12px">
+            <span><b style="color:#0F172A">رحلة الذهاب</b> · ${esc(b.airline)}</span>
+            <span>${fmtDate(b.depart_date)}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px">
+            <div style="text-align:center"><div style="font-size:28px;font-weight:700">${esc(b.depart_time)}</div><div style="font-size:14px;font-weight:600;color:#475569">${esc(b.origin)}</div></div>
+            <div style="flex:1;display:flex;align-items:center;gap:6px;color:#2563EB">
+              <span style="width:8px;height:8px;border-radius:50%;border:2px solid #2563EB"></span>
+              <span style="flex:1;border-top:2px dashed #DBEAFE"></span><span style="font-size:18px;display:inline-block;transform:scaleX(-1)">✈</span><span style="flex:1;border-top:2px dashed #DBEAFE"></span>
+              <span style="width:8px;height:8px;border-radius:50%;background:#2563EB"></span>
+            </div>
+            <div style="text-align:center"><div style="font-size:28px;font-weight:700">${esc(b.arrive_time)}</div><div style="font-size:14px;font-weight:600;color:#475569">${esc(b.destination)}</div></div>
+          </div>
+          ${b.return_date ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid #E2E8F0;font-size:13px;color:#475569"><b style="color:#0F172A">رحلة العودة:</b> ${fmtDate(b.return_date)} · من ${esc(b.destination)} إلى ${esc(b.origin)}</div>` : ''}
+        </div>
+
+        <!-- passengers -->
+        <div style="font-size:14px;font-weight:700;margin-bottom:8px">المسافرون (${b.pax_count})</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px">
+          <thead><tr style="background:#F8FAFC;color:#475569"><th style="padding:8px;text-align:right">#</th><th style="padding:8px;text-align:right">الاسم الكامل</th><th style="padding:8px;text-align:right">رقم الجواز</th><th style="padding:8px;text-align:right">الدرجة</th></tr></thead>
+          <tbody>${b.passengers.map((p, i) => `<tr style="border-bottom:1px solid #E2E8F0"><td style="padding:8px">${i + 1}</td><td style="padding:8px;font-weight:600">${esc(p.fullName)}</td><td style="padding:8px" dir="ltr">${esc(p.passport)}</td><td style="padding:8px">سياحية</td></tr>`).join('')}</tbody>
+        </table>
+
+        <!-- cost + payment -->
+        <div style="display:flex;gap:20px">
+          <div style="flex:1;border:1px solid #E2E8F0;border-radius:12px;padding:14px 18px">
+            <div style="font-size:14px;font-weight:700;margin-bottom:6px">ملخص التكلفة</div>
+            <table style="width:100%;font-size:13px">
+              ${row('سعر التذاكر', fmt(b.fare_total) + ' د.ل')}
+              ${row('الضرائب ورسوم المطار', fmt(b.taxes) + ' د.ل')}
+              ${row('رسوم الخدمة', fmt(b.service_fee) + ' د.ل')}
+              ${b.cod_fee ? row('رسوم التحصيل النقدي', fmt(b.cod_fee) + ' د.ل') : ''}
+              <tr><td colspan="2" style="border-top:1px solid #E2E8F0"></td></tr>
+              ${row('الإجمالي', fmt(b.total) + ' د.ل', true)}
+            </table>
+          </div>
+          <div style="width:38%;border:1px solid #E2E8F0;border-radius:12px;padding:14px 18px;font-size:13px">
+            <div style="font-size:14px;font-weight:700;margin-bottom:6px">الدفع</div>
+            <table style="width:100%">
+              ${row('الطريقة', PAY[b.payment_method] || esc(b.payment_method))}
+              ${b.contact_phone ? row('هاتف التواصل', `<span dir="ltr">${esc(b.contact_phone)}</span>`) : ''}
+              ${b.phone ? row('هاتف المحفظة', `<span dir="ltr">${esc(b.phone)}</span>`) : ''}
+              ${row('الحالة', (PAY_STATUS[b.status] || [b.status])[0])}
+              ${b.paid_at ? row('تاريخ الدفع', utc(b.paid_at).toLocaleDateString('ar-LY')) : ''}
+            </table>
+          </div>
+        </div>
+
+        <!-- notes -->
+        <div style="margin-top:20px;background:#FFFBEB;border-radius:12px;padding:12px 16px;font-size:12px;line-height:1.9;color:#7a3b00">
+          • يرجى الحضور إلى المطار قبل موعد الإقلاع بـ 3 ساعات مع جواز سفر ساري المفعول.<br>
+          • هذا المستند ملخص حجز صادر عن ${esc(SITE_NAME)}، وليس تذكرة إلكترونية صادرة عن شركة الطيران. تُرسل التذكرة الإلكترونية بعد إصدارها.<br>
+          • لأي تعديل أو استفسار، تواصل معنا مع ذكر رقم الحجز.
+        </div>
+      </div>
+
+      <div style="background:#F8FAFC;padding:12px 24px;display:flex;justify-content:space-between;font-size:11px;color:#94A3B8">
+        <span>${esc(SITE_NAME)}</span>
+        <span>تاريخ الإصدار: ${issued}</span>
+      </div>
+    </div>`;
+  }
+
+  // ===== Wiring =====
+  function show(loggedIn) {
+    $('#login').classList.toggle('hidden', loggedIn);
+    $('#dash').classList.toggle('hidden', !loggedIn);
+    $('#logout').classList.toggle('hidden', !loggedIn);
+    $('#settingsBtn').classList.toggle('hidden', !loggedIn);
+  }
+
+  $('#loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    token = $('#token').value.trim();
+    try { await load(); store.set(token); show(true); $('#loginErr').classList.add('hidden'); }
+    catch (err) { $('#loginErr').textContent = err.message; $('#loginErr').classList.remove('hidden'); }
+  });
+  $('#logout').addEventListener('click', () => { store.clear(); token = ''; all = []; show(false); });
+
+  // ===== الإعدادات: رقم واتساب المكتب =====
+  const setModal = $('#settingsModal');
+  // ===== اسم الموقع (من الإعدادات) =====
+  let SITE_NAME = '';
+  function applySiteName(name) {
+    if (name) SITE_NAME = name;
+    document.querySelectorAll('[data-site-name]').forEach(el => { el.textContent = SITE_NAME; });
+    document.title = SITE_NAME ? `لوحة التحكم | ${SITE_NAME}` : 'لوحة التحكم';
+  }
+  fetch('/api/settings', { cache: 'no-store' }).then(r => r.json()).then(st => applySiteName(st.site_name)).catch(() => {});
+
+  function renderWa(wa) {
+    $('#waInput').value = wa ? '+' + wa : '';
+    $('#waStatus').innerHTML = wa
+      ? `✅ الرقم الحالي: <b dir="ltr">+${esc(wa)}</b> — الزبائن يراسلون المكتب مباشرة.`
+      : '↗ لا يوجد رقم — زر واتساب يعمل حالياً كـ<b>مشاركة الحجز</b>.';
+    $('#waTest').classList.toggle('hidden', !wa);
+    if (wa) $('#waTest').href = `https://wa.me/${wa}?text=${encodeURIComponent(`رسالة تجربة من لوحة تحكم ${SITE_NAME}`)}`;
+  }
+  async function openSettings() {
+    $('#setErr').classList.add('hidden');
+    setModal.classList.remove('hidden'); setModal.classList.add('flex');
+    try { const st = await (await fetch('/api/settings', { cache: 'no-store' })).json(); $('#nameInput').value = st.site_name || ''; applySiteName(st.site_name); renderWa(st.whatsapp); }
+    catch { $('#waStatus').textContent = 'تعذر قراءة الإعدادات'; }
+    $('#waInput').focus();
+  }
+  const closeSettings = () => { setModal.classList.add('hidden'); setModal.classList.remove('flex'); };
+  async function saveWa(value, siteName) {
+    $('#setErr').classList.add('hidden');
+    $('#waSave').disabled = true;
+    try {
+      const body = { whatsapp: value };
+      if (siteName !== undefined) body.site_name = siteName;
+      const st = await api('/api/settings', { method: 'PUT', body: JSON.stringify(body) });
+      applySiteName(st.site_name);
+      renderWa(st.whatsapp);
+      toast(siteName !== undefined ? 'تم حفظ الإعدادات' : 'تمت إزالة الرقم — الزر يعمل كمشاركة');
+    } catch (err) {
+      $('#setErr').textContent = err.message; $('#setErr').classList.remove('hidden');
+    } finally { $('#waSave').disabled = false; }
+  }
+  // الأرقام العربية ← إنجليزية أثناء الكتابة
+  $('#waInput').addEventListener('input', e => {
+    const v = e.target.value.replace(/[\u0660-\u0669]/g, d => d.charCodeAt(0) - 0x660);
+    if (v !== e.target.value) e.target.value = v;
+  });
+  $('#settingsBtn').addEventListener('click', openSettings);
+  $('#settingsForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = $('#nameInput').value.trim();
+    if (name.length < 2) { $('#setErr').textContent = 'أدخل اسم الموقع (حرفان على الأقل)'; $('#setErr').classList.remove('hidden'); $('#nameInput').focus(); return; }
+    saveWa($('#waInput').value.trim(), name);
+  });
+
+  // ===== تصدير Excel (CSV) =====
+  $('#exportCsv').addEventListener('click', async () => {
+    const btn = $('#exportCsv');
+    btn.disabled = true; btn.style.opacity = '.6';
+    try {
+      const res = await fetch('/api/bookings/export.csv', { headers: { Authorization: 'Bearer ' + token } });
+      if (res.status === 401) throw new Error('رمز الإدارة غير صحيح');
+      if (!res.ok) throw new Error('تعذر تصدير الحجوزات');
+      const blob = await res.blob();
+      const name = (/filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '') || [])[1] || 'bookings.csv';
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), { href: url, download: name });
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast(`تم تصدير ${all.length} حجز`);
+    } catch (err) {
+      toast(err.message, false);
+    } finally { btn.disabled = false; btn.style.opacity = ''; }
+  });
+  $('#waClear').addEventListener('click', () => { if (confirm('إزالة رقم واتساب المكتب؟ سيعمل الزر كمشاركة فقط.')) saveWa(''); });
+  setModal.addEventListener('click', e => { if (e.target === setModal || e.target.closest('[data-set-close]')) closeSettings(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !setModal.classList.contains('hidden')) closeSettings(); });
+  $('#refresh').addEventListener('click', () => load().then(() => toast('تم التحديث')).catch(err => toast(err.message, false)));
+  $('#search').addEventListener('input', render);
+  $('#tabs').addEventListener('click', e => { const t = e.target.closest('.tab'); if (t) { filter = t.dataset.filter; render(); } });
+
+  if (token) load().then(() => show(true)).catch(() => { store.clear(); show(false); });
+</script>
+</body>
+</html>
