@@ -1,16 +1,18 @@
 {
-  "name": "takrouni-flights",
+  "name": "rehlati-flights",
   "version": "1.0.0",
-  "description": "التكروني للسفر والسياحة — واجهة حجز تذاكر + Backend (Express + SQLite)",
+  "description": "رحلتي لحجز الطيران — واجهة حجز تذاكر + لوحة تحكم (Express + MongoDB Atlas)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "import": "node scripts/import-to-mongo.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "express": "^4.22.3"
+    "express": "^4.22.3",
+    "mongodb": "^6.21.0"
   }
 }

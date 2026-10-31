@@ -1,6 +1,6 @@
 // =============================================================
 //  رحلتي لحجز الطيران — Backend
-//  Express فقط + تخزين في ملف JSON (bookings.json)
+//  Express + MongoDB Atlas (عند ضبط MONGODB_URI) أو ملفات JSON محلياً — انظر store.js
 //
 //  عام:
 //    GET   /api/config               ← المدن والمسارات والأسعار ورقم واتساب المكتب
@@ -14,17 +14,16 @@
 //    PATCH /api/bookings/:ref/status ← تأكيد / إلغاء / تم استلام الدفع
 //    PUT   /api/settings             ← حفظ الإعدادات { "site_name": "...", "whatsapp": "0912345678" }
 //    GET   /api/bookings/export.csv  ← تصدير كل الحجوزات لملف Excel (CSV)
+//    GET   /api/health               ← فحص الحالة (لـ Render)
 // =============================================================
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
 const crypto = require('crypto');
+const { store, DEFAULT_SETTINGS } = require('./store');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '123456';
-const DB_FILE = process.env.DB_FILE || path.join(__dirname, 'bookings.json');
-const SETTINGS_FILE = process.env.SETTINGS_FILE || path.join(__dirname, 'settings.json');
 
 if (!process.env.ADMIN_TOKEN || ADMIN_TOKEN.length < 12) {
   console.warn('⚠️  ADMIN_TOKEN ضعيف أو غير مضبوط. استخدم رمزاً طويلاً (12 حرفاً فأكثر) قبل فتح الموقع للعامة.');
@@ -74,48 +73,20 @@ const badTokenHits = new Map();
 setInterval(() => { const t = Date.now(); for (const [k, v] of badTokenHits) if (v.reset < t) badTokenHits.delete(k); }, 60_000).unref();
 
 // -------------------------------------------------------------
-// التخزين (ملف JSON)
+// الإعدادات — تُقرأ من التخزين مرة عند التشغيل وتُحفظ في الذاكرة (سريع)، وتُحدَّث عند الحفظ من اللوحة
 // -------------------------------------------------------------
-if (!fs.existsSync(DB_FILE)) fs.writeFileSync(DB_FILE, '[]');
-
-function getBookings() {
-  try {
-    const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-    return Array.isArray(data) ? data.map(normalize) : [];
-  } catch (e) {
-    console.error('تعذر قراءة bookings.json:', e.message);
-    return [];
-  }
+let SETTINGS = { ...DEFAULT_SETTINGS };
+const getSettings = () => SETTINGS;
+async function saveSettings(next) {
+  await store.saveSettings(next);
+  SETTINGS = { ...next };
 }
-
-// كتابة آمنة: ملف مؤقت ثم استبدال، حتى لا يتلف الملف لو انقطع السيرفر أثناء الحفظ
-function saveBookings(bookings) {
-  const tmp = DB_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(bookings, null, 2));
-  fs.renameSync(tmp, DB_FILE);
-}
-
-// -------------------------------------------------------------
-// الإعدادات المركزية (settings.json) — تُعدَّل من لوحة التحكم، لا شيء مثبّت في الكود
-// -------------------------------------------------------------
-const DEFAULT_SETTINGS = {
-  site_name: 'رحلتي لحجز الطيران', // اسم الموقع/المكتب — يظهر في الهيدر والتذكرة ورسائل واتساب
-  office_whatsapp: '',
-};
 const SITE_NAME_MAX = 60;
 // اسم آمن للعرض: بدون وسوم HTML أو رموز تحكم
 const cleanSiteName = v => String(v ?? '').replace(/[<>\u0000-\u001F\u007F]/g, '').replace(/\s+/g, ' ').trim();
 
-function getSettings() {
-  try { return { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) }; }
-  catch { return { ...DEFAULT_SETTINGS }; }
-}
-function saveSettings(settings) {
-  const tmp = SETTINGS_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(settings, null, 2));
-  fs.renameSync(tmp, SETTINGS_FILE);
-}
-if (!fs.existsSync(SETTINGS_FILE)) saveSettings(DEFAULT_SETTINGS);
+// مسارات async: أي خطأ يذهب لمعالج الأخطاء بدل أن يُسقط السيرفر
+const ah = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 // رقم واتساب بالصيغة الدولية بدون + (مثال: 218911234567)
 // يقبل: 0912345678 · +218912345678 · 00218912345678 · ٠٩١٢٣٤٥٦٧٨ · أرقام دول أخرى
@@ -126,25 +97,6 @@ function normalizeWhatsapp(raw) {
   else if (s.startsWith('00')) s = s.slice(2);
   else if (/^09[1-5]\d{7}$/.test(s)) s = '218' + s.slice(1); // رقم ليبي محلي
   return /^[1-9]\d{7,14}$/.test(s) ? s : null;
-}
-
-// يكمّل الحجوزات القديمة بالحقول الجديدة حتى لا تتعطل الواجهة أو اللوحة
-function normalize(b) {
-  if (!b || typeof b !== 'object') return b;
-  if (!b.ref) { // من النسخة المبسطة الأولى (passengerName/phone)
-    b = {
-      id: b.id, ref: 'OLD-' + b.id, flight_id: b.flightId, airline: '—', origin: '—', destination: '—',
-      depart_time: '', arrive_time: '', depart_date: null, return_date: null,
-      pax_count: Number(b.seats) || 1, passengers: [{ fullName: b.passengerName || '—', passport: '' }],
-      contact_phone: b.phone || '', email: b.email || '', payment_method: 'cod', phone: null,
-      fare_total: 0, taxes: 0, service_fee: 0, cod_fee: 0, total: 0,
-      status: 'pending_cod', booking_status: b.status === 'cancelled' ? 'cancelled' : 'pending',
-      created_at: b.createdAt || now(),
-    };
-  }
-  if (!b.trip_type) b.trip_type = b.return_date ? 'round' : 'oneway';
-  if (b.adults == null) { b.adults = b.pax_count || (b.passengers || []).length || 1; b.children = 0; b.infants = 0; }
-  return b;
 }
 
 // -------------------------------------------------------------
@@ -278,13 +230,12 @@ function validateBooking(body) {
   return { errors, data: { tripType, out, ret, counts, passengers, contact_phone, email, method, phone } };
 }
 
-function newRef(existing) {
+async function newRef() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let ref;
-  do {
-    ref = 'TKR-' + Array.from(crypto.randomBytes(6), x => alphabet[x % alphabet.length]).join('');
-  } while (existing.has(ref));
-  return ref;
+  for (;;) {
+    const ref = 'TKR-' + Array.from(crypto.randomBytes(6), x => alphabet[x % alphabet.length]).join('');
+    if (!(await store.refExists(ref))) return ref;
+  }
 }
 
 // -------------------------------------------------------------
@@ -385,17 +336,16 @@ app.get('/api/flights', rateLimit(60, 60_000), (req, res) => {
 });
 
 // ---------- إنشاء حجز ----------
-app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزات كثيرة من هذا الجهاز، حاول بعد 15 دقيقة'), (req, res) => {
+app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزات كثيرة من هذا الجهاز، حاول بعد 15 دقيقة'), ah(async (req, res) => {
   const { errors, data } = validateBooking(req.body);
   if (errors.length) return res.status(400).json({ error: errors[0], details: errors });
 
   try {
-    const bookings = getBookings();
     const { tripType, out, ret, counts, passengers, contact_phone, email, method, phone } = data;
     const legs = ret ? [out, ret] : [out];
     const booking = {
       id: Date.now(),
-      ref: newRef(new Set(bookings.map(b => b.ref))),
+      ref: await newRef(),
       trip_type: tripType,
       // حقول رحلة الذهاب في المستوى الأعلى — تستخدمها لوحة التحكم والتذكرة
       flight_id: out.id, airline: out.airline, origin: out.origin, destination: out.destination,
@@ -412,8 +362,7 @@ app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزا
       booking_status: 'pending',
       created_at: now(),
     };
-    bookings.unshift(booking);
-    saveBookings(bookings);
+    await store.insertBooking(booking);
     console.log(`[new] ${booking.ref} · ${out.origin}→${out.destination}${ret ? ' (ذهاب وعودة)' : ''} · ${booking.pax_count} pax · ${booking.total} LYD · ${method}`);
     res.status(201).json({
       success: true,
@@ -427,13 +376,13 @@ app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزا
     console.error(e);
     res.status(500).json({ error: 'حدث خطأ في السيرفر، حاول مرة أخرى' });
   }
-});
+}));
 
 // ---------- تتبّع الحجز (رقم الحجز + الهاتف) — بدون أرقام الجوازات ----------
-app.get('/api/track', rateLimit(20, 15 * 60_000, 'محاولات بحث كثيرة، حاول بعد 15 دقيقة'), (req, res) => {
+app.get('/api/track', rateLimit(20, 15 * 60_000, 'محاولات بحث كثيرة، حاول بعد 15 دقيقة'), ah(async (req, res) => {
   const ref = toAsciiDigits(req.query.ref).trim().toUpperCase();
   const phone = normalizePhone(req.query.phone);
-  const b = phone ? getBookings().find(x => x.ref === ref && x.contact_phone === phone) : null;
+  const b = phone ? await store.findBookingByRefAndPhone(ref, phone) : null;
   if (!b) return res.status(404).json({ error: 'لم نجد حجزاً بهذه البيانات. تأكد من رقم الحجز ورقم الهاتف.' });
   const out = b.outbound || { airline: b.airline, origin: b.origin, destination: b.destination, depart_date: b.depart_date, depart_time: b.depart_time, arrive_time: b.arrive_time };
   res.json({
@@ -446,23 +395,22 @@ app.get('/api/track', rateLimit(20, 15 * 60_000, 'محاولات بحث كثير
       created_at: b.created_at,
     },
   });
-});
+}));
 
 // ---------- الإدارة ----------
-app.get('/api/bookings', requireAdmin, (req, res) => {
-  const all = getBookings();
+app.get('/api/bookings', requireAdmin, ah(async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit) || 500, 1), 1000);
   const offset = Math.max(parseInt(req.query.offset) || 0, 0);
-  const page = all.slice(offset, offset + limit);
-  res.json({ items: page, bookings: page, total: all.length, count: page.length, limit, offset });
-});
+  const { items, total } = await store.listBookings({ limit, offset });
+  res.json({ items, bookings: items, total, count: items.length, limit, offset });
+}));
 
 // ---------- تصدير الحجوزات إلى Excel (CSV) ----------
 const PAY_AR = { sadad: 'سداد', tadawul: 'تداول', cod: 'كاش عند الاستلام' };
 const PAY_ST_AR = { pending_cod: 'بانتظار الكاش', pending_payment: 'بانتظار الدفع', paid: 'مدفوع' };
 const BOOK_ST_AR = { pending: 'بانتظار التأكيد', confirmed: 'مؤكد', cancelled: 'ملغي' };
 
-app.get('/api/bookings/export.csv', requireAdmin, (req, res) => {
+app.get('/api/bookings/export.csv', requireAdmin, ah(async (req, res) => {
   const head = ['رقم الحجز', 'تاريخ الحجز', 'وقت الحجز', 'نوع الرحلة', 'شركة الطيران', 'رقم الرحلة', 'من', 'إلى',
     'تاريخ الذهاب', 'وقت الذهاب', 'تاريخ العودة', 'بالغين', 'أطفال', 'رضّع', 'أسماء المسافرين', 'أرقام الجوازات',
     'هاتف التواصل', 'البريد', 'طريقة الدفع', 'هاتف المحفظة', 'حالة الدفع', 'حالة الحجز', 'تاريخ الدفع',
@@ -478,7 +426,7 @@ app.get('/api/bookings/export.csv', requireAdmin, (req, res) => {
     const d = new Date(Date.parse(iso) + 2 * 3600_000).toISOString();
     return [d.slice(0, 10), d.slice(11, 16)];
   };
-  const rows = getBookings().map(b => {
+  const rows = (await store.allBookings()).map(b => {
     const [d, t] = local(b.created_at);
     const pax = b.passengers || [];
     return [b.ref, d, t, b.trip_type === 'round' ? 'ذهاب وعودة' : 'ذهاب فقط', b.airline, b.outbound?.flight_no || '',
@@ -496,38 +444,37 @@ app.get('/api/bookings/export.csv', requireAdmin, (req, res) => {
     'Cache-Control': 'no-store',
   });
   res.send('\uFEFF' + [head.join(','), ...rows].join('\r\n')); // BOM ليظهر العربي صحيحاً في Excel
-});
+}));
 
-app.get('/api/bookings/:ref', requireAdmin, (req, res) => {
-  const booking = getBookings().find(b => b.ref === req.params.ref);
+app.get('/api/bookings/:ref', requireAdmin, ah(async (req, res) => {
+  const booking = await store.findBooking(req.params.ref);
   if (!booking) return res.status(404).json({ error: 'الحجز غير موجود' });
   res.json({ booking });
-});
+}));
 
-app.patch('/api/bookings/:ref/status', requireAdmin, (req, res) => {
+app.patch('/api/bookings/:ref/status', requireAdmin, ah(async (req, res) => {
   const action = req.body?.action;
   if (!STATUS_ACTIONS[action]) return res.status(400).json({ error: 'إجراء غير صالح', allowed: Object.keys(STATUS_ACTIONS) });
   try {
-    const bookings = getBookings();
-    const booking = bookings.find(b => b.ref === req.params.ref);
+    const booking = await store.findBooking(req.params.ref);
     if (!booking) return res.status(404).json({ error: 'الحجز غير موجود' });
     const problem = STATUS_ACTIONS[action].check(booking);
     if (problem) return res.status(409).json({ error: problem });
     STATUS_ACTIONS[action].apply(booking);
     booking.updated_at = now();
-    saveBookings(bookings);
+    await store.replaceBooking(booking);
     console.log(`[status] ${booking.ref} → ${action}`);
     res.json({ booking });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'حدث خطأ في السيرفر' });
   }
-});
+}));
 
 // ---------- تعديل الإعدادات (الإدارة) ----------
-app.put('/api/settings', requireAdmin, (req, res) => {
+app.put('/api/settings', requireAdmin, ah(async (req, res) => {
   const body = req.body || {};
-  const settings = getSettings();
+  const settings = { ...getSettings() };
   if (body.site_name !== undefined) {
     const name = cleanSiteName(body.site_name);
     if (name.length < 2 || name.length > SITE_NAME_MAX) return res.status(400).json({ error: `اسم الموقع من 2 إلى ${SITE_NAME_MAX} حرفاً` });
@@ -538,10 +485,15 @@ app.put('/api/settings', requireAdmin, (req, res) => {
     if (wa === null) return res.status(400).json({ error: 'رقم واتساب غير صالح. مثال: 0912345678 أو ‎+218912345678' });
     settings.office_whatsapp = wa;
   }
-  saveSettings(settings);
+  await saveSettings(settings);
   console.log(`[settings] site_name → ${settings.site_name} · office_whatsapp → ${settings.office_whatsapp || '(بدون رقم — وضع المشاركة)'}`);
   res.json({ site_name: settings.site_name, whatsapp: settings.office_whatsapp });
-});
+}));
+
+app.get('/api/health', ah(async (req, res) => {
+  await store.refExists('__health__'); // يتأكد أن قاعدة البيانات ترد
+  res.json({ ok: true, storage: store.kind, time: now() });
+}));
 
 app.get('/api/admin/bookings', (req, res) => res.redirect(307, '/api/bookings'));
 app.use('/api', (req, res) => res.status(404).json({ error: 'المسار غير موجود' }));
@@ -552,13 +504,31 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'حدث خطأ في السيرفر' });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n===========================================`);
-  console.log(`✅ السيرفر يعمل بنجاح!`);
-  console.log(`🌐 الموقع: http://localhost:${PORT}`);
-  console.log(`📊 لوحة التحكم: http://localhost:${PORT}/admin.html`);
-  console.log(`💾 الحجوزات: ${DB_FILE}`);
-  const wa = getSettings().office_whatsapp;
-  console.log(`💬 واتساب المكتب: ${wa ? '+' + wa : 'غير معيَّن — زر واتساب يعمل كمشاركة (عيّنه من لوحة التحكم ← الإعدادات)'}`);
-  console.log(`===========================================\n`);
-});
+// -------------------------------------------------------------
+// التشغيل: نتصل بالتخزين أولاً، ثم نفتح السيرفر
+// -------------------------------------------------------------
+async function start() {
+  try {
+    await store.init();
+    SETTINGS = await store.getSettings();
+  } catch (e) {
+    console.error('❌ تعذر الاتصال بقاعدة البيانات:', e.message);
+    console.error('   تأكد من MONGODB_URI، ومن كلمة مرور المستخدم، ومن إضافة 0.0.0.0/0 في Network Access على Atlas.');
+    process.exit(1); // Render يعيد المحاولة تلقائياً
+  }
+  const server = app.listen(PORT, () => {
+    console.log(`\n===========================================`);
+    console.log(`✅ السيرفر يعمل بنجاح!`);
+    console.log(`🌐 الموقع: http://localhost:${PORT}`);
+    console.log(`📊 لوحة التحكم: http://localhost:${PORT}/admin.html`);
+    console.log(`💾 التخزين: ${store.describe()}`);
+    const wa = getSettings().office_whatsapp;
+    console.log(`💬 واتساب المكتب: ${wa ? '+' + wa : 'غير معيَّن — زر واتساب يعمل كمشاركة (عيّنه من لوحة التحكم ← الإعدادات)'}`);
+    console.log(`===========================================\n`);
+  });
+  // إيقاف نظيف (Render يرسل SIGTERM قبل إعادة التشغيل)
+  const stop = () => server.close(async () => { try { await store.client?.close(); } finally { process.exit(0); } });
+  process.on('SIGTERM', stop);
+  process.on('SIGINT', stop);
+}
+start();
