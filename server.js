@@ -12,7 +12,11 @@
 //    GET   /api/bookings             ← كل الحجوزات
 //    GET   /api/bookings/:ref        ← حجز واحد (للتذكرة)
 //    PATCH /api/bookings/:ref/status ← تأكيد / إلغاء / تم استلام الدفع
-//    PUT   /api/settings             ← حفظ الإعدادات { "site_name": "...", "whatsapp": "0912345678" }
+//    PUT   /api/settings             ← حفظ الإعدادات { "site_name", "whatsapp", "fx_usd", "fx_eur" }
+//    GET/POST        /api/admin/schedules           ← جدول الرحلات وفئات الأسعار
+//    PUT/DELETE      /api/admin/schedules/:no       ← تعديل / حذف رحلة
+//    GET             /api/admin/schedules/:no/dates ← المقاعد المباعة والمتبقية لكل يوم
+//    PUT             /api/admin/schedules/:no/dates/:date ← إقفال يوم / مقاعد بيعت في المكتب
 //    GET   /api/bookings/export.csv  ← تصدير كل الحجوزات لملف Excel (CSV)
 //    GET   /api/health               ← فحص الحالة (لـ Render)
 // =============================================================
@@ -100,71 +104,189 @@ function normalizeWhatsapp(raw) {
 }
 
 // -------------------------------------------------------------
-// المدن والرحلات — جدول أسبوعي تُولَّد منه رحلات كل يوم تلقائياً
-// (عدّل الأسعار والمواعيد هنا. days: أيام التشغيل، 0 = الأحد … 6 = السبت)
+// المطارات
 // -------------------------------------------------------------
 const AIRPORTS = {
-  MJI: { city: 'طرابلس',  name: 'مطار معيتيقة الدولي' },
-  BEN: { city: 'بنغازي',  name: 'مطار بنينا الدولي' },
-  IST: { city: 'إسطنبول', name: 'مطار إسطنبول' },
-  TUN: { city: 'تونس',    name: 'مطار تونس قرطاج' },
-  CAI: { city: 'القاهرة', name: 'مطار القاهرة الدولي' },
+  MJI: { city: 'طرابلس',     name: 'مطار معيتيقة الدولي' },
+  BEN: { city: 'بنغازي',     name: 'مطار بنينا الدولي' },
+  MRA: { city: 'مصراتة',     name: 'مطار مصراتة الدولي' },
+  SEB: { city: 'سبها',       name: 'مطار سبها' },
+  IST: { city: 'إسطنبول',    name: 'مطار إسطنبول' },
+  TUN: { city: 'تونس',       name: 'مطار تونس قرطاج' },
+  CAI: { city: 'القاهرة',    name: 'مطار القاهرة الدولي' },
+  AMM: { city: 'عمّان',      name: 'مطار الملكة علياء الدولي' },
+  DXB: { city: 'دبي',        name: 'مطار دبي الدولي' },
+  JED: { city: 'جدة',        name: 'مطار الملك عبدالعزيز الدولي' },
+  MLA: { city: 'مالطا',      name: 'مطار مالطا الدولي' },
 };
 
-const SCHEDULE = [
-  { no: 'LN401', airline: 'الخطوط الليبية',   code: 'LN', color: '#1D5BD8', from: 'MJI', to: 'IST', dep: '08:30', arr: '12:15', dur: 165, stops: 0, via: '',     price: 890,  bag: '23 كغ', days: [0, 2, 4, 6] },
-  { no: '8U742', airline: 'الخطوط الأفريقية', code: '8U', color: '#16A34A', from: 'MJI', to: 'IST', dep: '11:00', arr: '14:50', dur: 170, stops: 0, via: '',     price: 960,  bag: '30 كغ', days: [1, 3, 5] },
-  { no: 'UZ215', airline: 'البراق للطيران',   code: 'UZ', color: '#7C3AED', from: 'MJI', to: 'IST', dep: '06:15', arr: '13:40', dur: 385, stops: 1, via: 'تونس', price: 760,  bag: '23 كغ', days: [0, 1, 2, 3, 4, 5, 6] },
-  { no: 'TK654', airline: 'الخطوط التركية',   code: 'TK', color: '#E11D48', from: 'MJI', to: 'IST', dep: '15:20', arr: '19:05', dur: 165, stops: 0, via: '',     price: 1120, bag: '30 كغ', days: [0, 1, 2, 3, 4, 5, 6] },
-  { no: 'LN402', airline: 'الخطوط الليبية',   code: 'LN', color: '#1D5BD8', from: 'IST', to: 'MJI', dep: '13:30', arr: '15:15', dur: 165, stops: 0, via: '',     price: 880,  bag: '23 كغ', days: [0, 2, 4, 6] },
-  { no: 'TK655', airline: 'الخطوط التركية',   code: 'TK', color: '#E11D48', from: 'IST', to: 'MJI', dep: '10:40', arr: '12:25', dur: 165, stops: 0, via: '',     price: 1090, bag: '30 كغ', days: [0, 1, 2, 3, 4, 5, 6] },
-  { no: 'UZ216', airline: 'البراق للطيران',   code: 'UZ', color: '#7C3AED', from: 'IST', to: 'MJI', dep: '17:20', arr: '23:55', dur: 395, stops: 1, via: 'تونس', price: 740,  bag: '23 كغ', days: [0, 1, 2, 3, 4, 5, 6] },
-  { no: '8U530', airline: 'الخطوط الأفريقية', code: '8U', color: '#16A34A', from: 'MJI', to: 'TUN', dep: '09:00', arr: '10:10', dur: 70,  stops: 0, via: '',     price: 420,  bag: '23 كغ', days: [0, 2, 4] },
-  { no: '8U531', airline: 'الخطوط الأفريقية', code: '8U', color: '#16A34A', from: 'TUN', to: 'MJI', dep: '12:00', arr: '13:10', dur: 70,  stops: 0, via: '',     price: 410,  bag: '23 كغ', days: [0, 2, 4] },
-  { no: 'LN160', airline: 'الخطوط الليبية',   code: 'LN', color: '#1D5BD8', from: 'BEN', to: 'CAI', dep: '07:45', arr: '09:30', dur: 105, stops: 0, via: '',     price: 610,  bag: '23 كغ', days: [1, 3, 5] },
-  { no: 'LN161', airline: 'الخطوط الليبية',   code: 'LN', color: '#1D5BD8', from: 'CAI', to: 'BEN', dep: '11:00', arr: '12:45', dur: 105, stops: 0, via: '',     price: 600,  bag: '23 كغ', days: [1, 3, 5] },
-  { no: 'TK658', airline: 'الخطوط التركية',   code: 'TK', color: '#E11D48', from: 'BEN', to: 'IST', dep: '14:10', arr: '18:20', dur: 190, stops: 0, via: '',     price: 1180, bag: '30 كغ', days: [2, 5] },
-  { no: 'TK659', airline: 'الخطوط التركية',   code: 'TK', color: '#E11D48', from: 'IST', to: 'BEN', dep: '09:20', arr: '11:30', dur: 190, stops: 0, via: '',     price: 1150, bag: '30 كغ', days: [2, 5] },
-];
+// -------------------------------------------------------------
+// جدول الرحلات — يديره المكتب من لوحة التحكم (الرحلات والأسعار) ويُحفظ في قاعدة البيانات.
+// كل رحلة أسبوعية لها: أيام التشغيل، وفئات أسعار (عدد مقاعد × سعر) مثل شركات الطيران:
+// تُباع الفئة الأرخص أولاً، وعند نفادها ينتقل السعر تلقائياً للفئة التالية، وعند نفاد الكل تُقفل الرحلة.
+// -------------------------------------------------------------
 const BOOKING_WINDOW_DAYS = 120; // أقصى مدة للحجز المسبق
 
 const PRICING = {
   TAX_PER_PAX_PER_LEG: 45, // ضرائب ورسوم مطار لكل مسافر (غير الرضيع) لكل رحلة
   SERVICE_FEE: 15,         // رسوم خدمة المكتب لكل حجز
   COD_FEE: 10,             // رسوم التحصيل النقدي
-  CHILD_RATE: 0.75,        // الطفل (2–11 سنة) = 75% من سعر البالغ
+  CHILD_RATE: 0.75,        // الطفل (2–11 سنة) = 75% من سعر مقعده
   INFANT_RATE: 0.10,       // الرضيع (أقل من سنتين، بدون مقعد) = 10%
   MAX_PAX: 9,
 };
 
-// رحلة يوم معيّن من الجدول. المعرّف ثابت: LN401-2026-11-12
-function flightFor(s, date) {
-  return {
-    id: `${s.no}-${date}`, flight_no: `${s.no.slice(0, 2)} ${s.no.slice(2)}`, airline: s.airline, airline_code: s.code,
-    color: s.color, origin: s.from, destination: s.to, depart_date: date, depart_time: s.dep, arrive_time: s.arr,
-    arrive_offset: s.arr < s.dep ? 1 : 0, duration_min: s.dur, stops: s.stops, via: s.via, price: s.price, bag: s.bag,
-  };
+// يُستخدم مرة واحدة فقط لتعبئة الجدول إذا كان فارغاً (أول تشغيل). بعدها كل التعديل من اللوحة.
+const SEED = [
+  ['LN401', 'الخطوط الليبية',   'LN', '#1D5BD8', 'MJI', 'IST', '08:30', '12:15', 165, 0, '',     890,  '23 كغ', [0, 2, 4, 6]],
+  ['8U742', 'الخطوط الأفريقية', '8U', '#16A34A', 'MJI', 'IST', '11:00', '14:50', 170, 0, '',     960,  '30 كغ', [1, 3, 5]],
+  ['UZ215', 'البراق للطيران',   'UZ', '#7C3AED', 'MJI', 'IST', '06:15', '13:40', 385, 1, 'تونس', 760,  '23 كغ', [0, 1, 2, 3, 4, 5, 6]],
+  ['TK654', 'الخطوط التركية',   'TK', '#E11D48', 'MJI', 'IST', '15:20', '19:05', 165, 0, '',     1120, '30 كغ', [0, 1, 2, 3, 4, 5, 6]],
+  ['LN402', 'الخطوط الليبية',   'LN', '#1D5BD8', 'IST', 'MJI', '13:30', '15:15', 165, 0, '',     880,  '23 كغ', [0, 2, 4, 6]],
+  ['TK655', 'الخطوط التركية',   'TK', '#E11D48', 'IST', 'MJI', '10:40', '12:25', 165, 0, '',     1090, '30 كغ', [0, 1, 2, 3, 4, 5, 6]],
+  ['UZ216', 'البراق للطيران',   'UZ', '#7C3AED', 'IST', 'MJI', '17:20', '23:55', 395, 1, 'تونس', 740,  '23 كغ', [0, 1, 2, 3, 4, 5, 6]],
+  ['8U530', 'الخطوط الأفريقية', '8U', '#16A34A', 'MJI', 'TUN', '09:00', '10:10', 70,  0, '',     420,  '23 كغ', [0, 2, 4]],
+  ['8U531', 'الخطوط الأفريقية', '8U', '#16A34A', 'TUN', 'MJI', '12:00', '13:10', 70,  0, '',     410,  '23 كغ', [0, 2, 4]],
+  ['LN160', 'الخطوط الليبية',   'LN', '#1D5BD8', 'BEN', 'CAI', '07:45', '09:30', 105, 0, '',     610,  '23 كغ', [1, 3, 5]],
+  ['LN161', 'الخطوط الليبية',   'LN', '#1D5BD8', 'CAI', 'BEN', '11:00', '12:45', 105, 0, '',     600,  '23 كغ', [1, 3, 5]],
+  ['TK658', 'الخطوط التركية',   'TK', '#E11D48', 'BEN', 'IST', '14:10', '18:20', 190, 0, '',     1180, '30 كغ', [2, 5]],
+  ['TK659', 'الخطوط التركية',   'TK', '#E11D48', 'IST', 'BEN', '09:20', '11:30', 190, 0, '',     1150, '30 كغ', [2, 5]],
+].map(([no, airline, code, color, from, to, dep, arr, dur, stops, via, price, bag, days]) => ({
+  no, airline, code, color, from, to, dep, arr, dur, stops, via, bag, days, currency: 'LYD', active: true,
+  // 3 فئات افتراضية: 12 مقعد بالسعر الأساسي، ثم +8%، ثم +18% (عدّلها من اللوحة)
+  tiers: [{ seats: 12, price }, { seats: 12, price: Math.round(price * 1.08 / 5) * 5 }, { seats: 12, price: Math.round(price * 1.18 / 5) * 5 }],
+  closed_dates: [], offline_sold: {},
+}));
+
+// الجدول في الذاكرة (سريع)، ويُحدَّث فوراً عند أي تعديل من اللوحة
+let SCHEDULES = [];
+const capacityOf = s => s.tiers.reduce((n, t) => n + t.seats, 0);
+const FX_KEY = { USD: 'fx_usd', EUR: 'fx_eur' };
+// سعر بعملة الرحلة ← دينار. null إذا لم يُضبط سعر الصرف بعد (الرحلة لا تُعرض حتى يُضبط)
+function toLYD(amount, currency) {
+  if (!currency || currency === 'LYD') return Math.round(amount);
+  const rate = Number(getSettings()[FX_KEY[currency]]);
+  return rate > 0 ? Math.round(amount * rate) : null;
 }
-function findFlights(from, to, date) {
-  const dow = new Date(date + 'T00:00:00Z').getUTCDay();
-  return SCHEDULE.filter(s => s.from === from && s.to === to && s.days.includes(dow)).map(s => flightFor(s, date));
-}
-function flightById(id) {
-  const m = /^([A-Z0-9]{2}\d{1,4})-(\d{4}-\d{2}-\d{2})$/.exec(String(id || ''));
-  if (!m || !isDate(m[2])) return null;
-  const s = SCHEDULE.find(x => x.no === m[1]);
-  if (!s || !s.days.includes(new Date(m[2] + 'T00:00:00Z').getUTCDay())) return null;
-  return flightFor(s, m[2]);
+const sellable = s => s.active && (s.currency === 'LYD' || Number(getSettings()[FX_KEY[s.currency]]) > 0);
+
+// أسعار المقاعد التالية بالدينار بدءاً من عدد المباع (كل مقعد بسعر فئته)
+function seatPrices(s, sold, n) {
+  const out = [];
+  let i = 0, cum = 0;
+  for (const t of s.tiers) {
+    for (let k = 0; k < t.seats; k++, i++) {
+      if (i < sold) continue;
+      if (out.length >= n) return out;
+      out.push(toLYD(t.price, s.currency));
+    }
+    cum += t.seats;
+  }
+  return out; // أقل من n = لا توجد مقاعد كافية
 }
 
+const flightId = (s, date) => `${s.no}-${date}`;
+const dow = date => new Date(date + 'T00:00:00Z').getUTCDay();
+const operates = (s, date) => s.days.includes(dow(date)) && !(s.closed_dates || []).includes(date);
+
+// رحلة يوم معيّن. need = عدد المقاعد المطلوبة (بالغين + أطفال) لحساب السعر بدقة
+function flightFor(s, date, soldOnline = 0, need = 1, infants = 0) {
+  const sold = soldOnline + (Number((s.offline_sold || {})[date]) || 0);
+  const cap = capacityOf(s), left = Math.max(0, cap - sold);
+  const prices = seatPrices(s, sold, Math.max(need, 1));
+  const price = prices[0] ?? toLYD(s.tiers[s.tiers.length - 1].price, s.currency);
+  // كم مقعد باقي في الفئة الحالية؟ (لإظهار "السعر يرتفع قريباً")
+  let cum = 0, tierLeft = 0;
+  for (const t of s.tiers) { cum += t.seats; if (sold < cum) { tierLeft = cum - sold; break; } }
+  const bookable = left >= need;
+  return {
+    id: flightId(s, date), schedule_no: s.no, flight_no: `${s.no.slice(0, 2)} ${s.no.slice(2)}`, airline: s.airline, airline_code: s.code,
+    color: s.color, origin: s.from, destination: s.to, depart_date: date, depart_time: s.dep, arrive_time: s.arr,
+    arrive_offset: s.arr < s.dep ? 1 : 0, duration_min: s.dur, stops: s.stops, via: s.via, bag: s.bag,
+    price,                                     // سعر المقعد القادم للبالغ (د.ل)
+    seat_prices: bookable ? prices : [],       // أسعار المقاعد المطلوبة بالترتيب
+    seats_left: left <= 9 ? left : undefined,  // مثل شركات الطيران: نُظهر العدد فقط عند 9 فأقل
+    bookable,
+    price_rising: bookable && left > tierLeft && tierLeft <= 3,
+    infants_ok: infants <= left,
+  };
+}
+
+async function findFlights(from, to, date, need = 1, infants = 0) {
+  const list = SCHEDULES.filter(s => sellable(s) && s.from === from && s.to === to && operates(s, date));
+  const sold = await store.seatsSold(list.map(s => flightId(s, date)));
+  return list.map(s => flightFor(s, date, sold[flightId(s, date)] || 0, need, infants));
+}
+async function flightById(id, need = 1) {
+  const m = /^([A-Z0-9]{2}\d{1,4})-(\d{4}-\d{2}-\d{2})$/.exec(String(id || ''));
+  if (!m || !isDate(m[2])) return null;
+  const s = SCHEDULES.find(x => x.no === m[1]);
+  if (!s || !sellable(s) || !operates(s, m[2])) return null;
+  const sold = await store.seatsSold([id]);
+  return flightFor(s, m[2], sold[id] || 0, need);
+}
+
+// تكلفة الحجز: كل مقعد بسعر فئته، الطفل 75% من سعر مقعده، الرضيع 10% من أول مقعد
 function calcCost(legs, c, method) {
   let fare_total = 0;
   for (const f of legs) {
-    fare_total += c.adults * f.price + c.children * Math.round(f.price * PRICING.CHILD_RATE) + c.infants * Math.round(f.price * PRICING.INFANT_RATE);
+    const p = f.seat_prices;
+    for (let i = 0; i < c.adults; i++) fare_total += p[i];
+    for (let i = 0; i < c.children; i++) fare_total += Math.round(p[c.adults + i] * PRICING.CHILD_RATE);
+    fare_total += c.infants * Math.round(p[0] * PRICING.INFANT_RATE);
   }
   const taxes = (c.adults + c.children) * PRICING.TAX_PER_PAX_PER_LEG * legs.length;
   const cod_fee = method === 'cod' ? PRICING.COD_FEE : 0;
   return { fare_total, taxes, service_fee: PRICING.SERVICE_FEE, cod_fee, total: fare_total + taxes + PRICING.SERVICE_FEE + cod_fee };
+}
+
+// حجز واحد في كل لحظة: يمنع بيع نفس المقعد مرتين لو وصل طلبان في نفس الثانية
+let bookingQueue = Promise.resolve();
+function withBookingLock(fn) {
+  const run = bookingQueue.then(fn, fn);
+  bookingQueue = run.catch(() => {});
+  return run;
+}
+
+// ---------- التحقق من بيانات رحلة يدخلها المكتب ----------
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+const clip = (v, n) => String(v ?? '').replace(/[<>\u0000-\u001F\u007F]/g, '').replace(/\s+/g, ' ').trim().slice(0, n);
+function validateSchedule(body, existing) {
+  const b = body || {}, errors = [];
+  const no = toAsciiDigits(b.no).toUpperCase().replace(/\s+/g, '');
+  if (!/^[A-Z0-9]{2}\d{1,4}$/.test(no)) errors.push('رقم الرحلة غير صالح (حرفان أو رمز الشركة ثم أرقام، مثال: LN401)');
+  const airline = clip(b.airline, 40); if (airline.length < 2) errors.push('اسم شركة الطيران مطلوب');
+  const code = toAsciiDigits(b.code || no.slice(0, 2)).toUpperCase().slice(0, 2);
+  if (!/^[A-Z0-9]{2}$/.test(code)) errors.push('رمز الشركة حرفان (مثال: LN)');
+  const color = COLOR_RE.test(b.color) ? b.color : '#2563EB';
+  const from = String(b.from || '').toUpperCase(), to = String(b.to || '').toUpperCase();
+  if (!AIRPORTS[from] || !AIRPORTS[to] || from === to) errors.push('اختر مطار إقلاع ووصول مختلفين');
+  const dep = toAsciiDigits(b.dep), arr = toAsciiDigits(b.arr);
+  if (!TIME_RE.test(dep) || !TIME_RE.test(arr)) errors.push('وقت الإقلاع والوصول بصيغة 08:30');
+  const dur = parseInt(toAsciiDigits(b.dur)); if (!(dur >= 20 && dur <= 1800)) errors.push('مدة الرحلة بالدقائق غير صالحة');
+  const stops = Math.min(Math.max(parseInt(toAsciiDigits(b.stops)) || 0, 0), 3);
+  const via = stops ? clip(b.via, 40) : '';
+  const bag = clip(b.bag, 30) || '23 كغ';
+  const days = [...new Set((Array.isArray(b.days) ? b.days : []).map(Number).filter(d => d >= 0 && d <= 6))].sort();
+  if (!days.length) errors.push('اختر يوم تشغيل واحد على الأقل');
+  const currency = ['LYD', 'USD', 'EUR'].includes(b.currency) ? b.currency : 'LYD';
+  const tiers = (Array.isArray(b.tiers) ? b.tiers : []).map(t => ({ seats: parseInt(toAsciiDigits(t?.seats)) || 0, price: Number(toAsciiDigits(t?.price)) || 0 }))
+    .filter(t => t.seats > 0 || t.price > 0);
+  if (!tiers.length) errors.push('أضف فئة أسعار واحدة على الأقل');
+  if (tiers.length > 8) errors.push('الحد الأقصى 8 فئات أسعار');
+  tiers.forEach((t, i) => {
+    if (!(t.seats >= 1 && t.seats <= 500)) errors.push(`عدد مقاعد الفئة ${i + 1} من 1 إلى 500`);
+    if (!(t.price > 0 && t.price <= 100000)) errors.push(`سعر الفئة ${i + 1} غير صالح`);
+  });
+  return {
+    errors, data: {
+      no, airline, code, color, from, to, dep, arr, dur, stops, via, bag, days, currency, tiers,
+      active: b.active !== false,
+      closed_dates: existing?.closed_dates || [], offline_sold: existing?.offline_sold || {},
+      updated_at: now(),
+    },
+  };
 }
 
 // -------------------------------------------------------------
@@ -173,26 +295,29 @@ function calcCost(legs, c, method) {
 const PASSPORT_RE = /^[A-Z0-9]{6,9}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function validateBooking(body) {
+async function validateBooking(body) {
   const errors = [];
   const b = body || {};
   const tripType = b.tripType === 'round' ? 'round' : 'oneway';
-
-  const out = flightById(b.outboundId);
-  const ret = tripType === 'round' ? flightById(b.returnId) : null;
-  if (!out) errors.push('رحلة الذهاب غير متاحة');
-  else if (out.depart_date < today()) errors.push('رحلة الذهاب في تاريخ ماضٍ');
-  if (tripType === 'round') {
-    if (!ret) errors.push('رحلة العودة غير متاحة');
-    else if (out && (ret.origin !== out.destination || ret.destination !== out.origin)) errors.push('رحلة العودة لا تطابق مسار الذهاب');
-    else if (out && ret.depart_date < out.depart_date) errors.push('تاريخ العودة قبل تاريخ الذهاب');
-  }
 
   const counts = {
     adults: parseInt(toAsciiDigits(b.adults)) || 0,
     children: parseInt(toAsciiDigits(b.children)) || 0,
     infants: parseInt(toAsciiDigits(b.infants)) || 0,
   };
+  const need = Math.max(counts.adults + counts.children, 1);
+  const out = await flightById(b.outboundId, need);
+  const ret = tripType === 'round' ? await flightById(b.returnId, need) : null;
+  if (!out) errors.push('رحلة الذهاب غير متاحة');
+  else if (!out.bookable) errors.push('لا توجد مقاعد كافية على رحلة الذهاب — اختر رحلة أخرى');
+  else if (out.depart_date < today()) errors.push('رحلة الذهاب في تاريخ ماضٍ');
+  if (tripType === 'round') {
+    if (!ret) errors.push('رحلة العودة غير متاحة');
+    else if (!ret.bookable) errors.push('لا توجد مقاعد كافية على رحلة العودة — اختر رحلة أخرى');
+    else if (out && (ret.origin !== out.destination || ret.destination !== out.origin)) errors.push('رحلة العودة لا تطابق مسار الذهاب');
+    else if (out && ret.depart_date < out.depart_date) errors.push('تاريخ العودة قبل تاريخ الذهاب');
+  }
+
   const paxTotal = counts.adults + counts.children + counts.infants;
   if (counts.adults < 1) errors.push('يجب وجود مسافر بالغ واحد على الأقل');
   if (counts.children < 0 || counts.infants < 0) errors.push('عدد المسافرين غير صالح');
@@ -302,7 +427,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------- الإعدادات العامة للواجهة ----------
 app.get('/api/config', (req, res) => {
-  const routes = [...new Map(SCHEDULE.map(s => [`${s.from}-${s.to}`, { origin: s.from, destination: s.to }])).values()];
+  const routes = [...new Map(SCHEDULES.filter(sellable).map(s => [`${s.from}-${s.to}`, { origin: s.from, destination: s.to }])).values()];
   res.json({ airports: AIRPORTS, routes, pricing: PRICING, whatsapp: getSettings().office_whatsapp, site_name: getSettings().site_name, today: today(), maxDate: addDays(today(), BOOKING_WINDOW_DAYS) });
 });
 
@@ -315,7 +440,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 // ---------- البحث الحقيقي ----------
-app.get('/api/flights', rateLimit(60, 60_000), (req, res) => {
+app.get('/api/flights', rateLimit(60, 60_000), ah(async (req, res) => {
   const from = String(req.query.from || '').toUpperCase(), to = String(req.query.to || '').toUpperCase();
   const date = toAsciiDigits(req.query.date);
   if (!AIRPORTS[from] || !AIRPORTS[to] || from === to) return res.status(400).json({ error: 'اختر مدينتين مختلفتين' });
@@ -323,24 +448,30 @@ app.get('/api/flights', rateLimit(60, 60_000), (req, res) => {
   if (date < today()) return res.status(400).json({ error: 'لا يمكن البحث في تاريخ ماضٍ' });
   if (date > addDays(today(), BOOKING_WINDOW_DAYS)) return res.status(400).json({ error: `الحجز متاح حتى ${BOOKING_WINDOW_DAYS} يوماً مقدماً` });
 
-  const flights = findFlights(from, to, date).sort((a, b) => a.depart_time.localeCompare(b.depart_time));
-  // أرخص سعر في الأيام القريبة (±3) لمساعدة الزبون على اختيار يوم أرخص
+  const adults = Math.max(parseInt(toAsciiDigits(req.query.adults)) || 1, 1);
+  const children = Math.max(parseInt(toAsciiDigits(req.query.children)) || 0, 0);
+  const infants = Math.max(parseInt(toAsciiDigits(req.query.infants)) || 0, 0);
+  const need = Math.min(adults + children, PRICING.MAX_PAX);
+  const flights = (await findFlights(from, to, date, need, infants)).sort((a, b) => a.depart_time.localeCompare(b.depart_time));
+  // أرخص سعر متاح في الأيام القريبة (±3) لمساعدة الزبون على اختيار يوم أرخص
   const nearby = [];
   for (let i = -3; i <= 3; i++) {
     const d = addDays(date, i);
-    if (d < today()) continue;
-    const list = findFlights(from, to, d);
+    if (d < today() || d > addDays(today(), BOOKING_WINDOW_DAYS)) continue;
+    const list = (await findFlights(from, to, d, need)).filter(f => f.bookable);
     if (list.length) nearby.push({ date: d, min_price: Math.min(...list.map(f => f.price)) });
   }
+  res.set('Cache-Control', 'no-store');
   res.json({ flights, nearby });
-});
+}));
 
 // ---------- إنشاء حجز ----------
 app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزات كثيرة من هذا الجهاز، حاول بعد 15 دقيقة'), ah(async (req, res) => {
-  const { errors, data } = validateBooking(req.body);
-  if (errors.length) return res.status(400).json({ error: errors[0], details: errors });
-
   try {
+   await withBookingLock(async () => {
+    // التحقق داخل القفل: المقاعد والأسعار تُحسب لحظة الحجز نفسها
+    const { errors, data } = await validateBooking(req.body);
+    if (errors.length) return res.status(400).json({ error: errors[0], details: errors });
     const { tripType, out, ret, counts, passengers, contact_phone, email, method, phone } = data;
     const legs = ret ? [out, ret] : [out];
     const booking = {
@@ -372,6 +503,7 @@ app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزا
         cod_fee: booking.cod_fee, total: booking.total,
       },
     });
+   });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'حدث خطأ في السيرفر، حاول مرة أخرى' });
@@ -480,6 +612,14 @@ app.put('/api/settings', requireAdmin, ah(async (req, res) => {
     if (name.length < 2 || name.length > SITE_NAME_MAX) return res.status(400).json({ error: `اسم الموقع من 2 إلى ${SITE_NAME_MAX} حرفاً` });
     settings.site_name = name;
   }
+  for (const [k, label] of [['fx_usd', 'الدولار'], ['fx_eur', 'اليورو']]) {
+    if (body[k] === undefined) continue;
+    const raw = toAsciiDigits(body[k]).trim();
+    if (raw === '') { settings[k] = null; continue; }
+    const v = Number(raw);
+    if (!(v > 0 && v < 1000)) return res.status(400).json({ error: `سعر ${label} غير صالح` });
+    settings[k] = Math.round(v * 10000) / 10000;
+  }
   if (body.whatsapp !== undefined) {
     const wa = normalizeWhatsapp(body.whatsapp);
     if (wa === null) return res.status(400).json({ error: 'رقم واتساب غير صالح. مثال: 0912345678 أو ‎+218912345678' });
@@ -487,7 +627,93 @@ app.put('/api/settings', requireAdmin, ah(async (req, res) => {
   }
   await saveSettings(settings);
   console.log(`[settings] site_name → ${settings.site_name} · office_whatsapp → ${settings.office_whatsapp || '(بدون رقم — وضع المشاركة)'}`);
-  res.json({ site_name: settings.site_name, whatsapp: settings.office_whatsapp });
+  res.json({ site_name: settings.site_name, whatsapp: settings.office_whatsapp, fx_usd: settings.fx_usd, fx_eur: settings.fx_eur });
+}));
+
+// ---------- الرحلات والأسعار (الإدارة) ----------
+app.get('/api/admin/schedules', requireAdmin, (req, res) => {
+  const s = getSettings();
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    schedules: SCHEDULES.map(x => ({ ...x, capacity: capacityOf(x), sellable: sellable(x) })),
+    airports: AIRPORTS, fx_usd: s.fx_usd, fx_eur: s.fx_eur,
+  });
+});
+
+app.post('/api/admin/schedules', requireAdmin, ah(async (req, res) => {
+  const { errors, data } = validateSchedule(req.body);
+  if (errors.length) return res.status(400).json({ error: errors[0], details: errors });
+  if (SCHEDULES.some(x => x.no === data.no)) return res.status(409).json({ error: `الرحلة ${data.no} موجودة مسبقاً — عدّلها بدل إضافتها` });
+  data.created_at = now();
+  await store.upsertSchedule(data);
+  SCHEDULES.push(data);
+  console.log(`[schedule] + ${data.no} ${data.from}→${data.to}`);
+  res.status(201).json({ schedule: data });
+}));
+
+app.put('/api/admin/schedules/:no', requireAdmin, ah(async (req, res) => {
+  const cur = SCHEDULES.find(x => x.no === req.params.no);
+  if (!cur) return res.status(404).json({ error: 'الرحلة غير موجودة' });
+  const { errors, data } = validateSchedule({ ...req.body, no: cur.no }, cur); // رقم الرحلة ثابت (تعتمد عليه الحجوزات)
+  if (errors.length) return res.status(400).json({ error: errors[0], details: errors });
+  data.created_at = cur.created_at;
+  await store.upsertSchedule(data);
+  SCHEDULES[SCHEDULES.indexOf(cur)] = data;
+  console.log(`[schedule] ~ ${data.no}`);
+  res.json({ schedule: data });
+}));
+
+app.delete('/api/admin/schedules/:no', requireAdmin, ah(async (req, res) => {
+  const cur = SCHEDULES.find(x => x.no === req.params.no);
+  if (!cur) return res.status(404).json({ error: 'الرحلة غير موجودة' });
+  await store.deleteSchedule(cur.no);
+  SCHEDULES = SCHEDULES.filter(x => x !== cur);
+  console.log(`[schedule] - ${cur.no}`);
+  res.json({ ok: true }); // الحجوزات السابقة تبقى كما هي (تحتفظ بنسخة من بيانات رحلتها)
+}));
+
+// مواعيد الرحلة القادمة: المباع والمتبقي والسعر الحالي لكل يوم تشغيل
+app.get('/api/admin/schedules/:no/dates', requireAdmin, ah(async (req, res) => {
+  const s = SCHEDULES.find(x => x.no === req.params.no);
+  if (!s) return res.status(404).json({ error: 'الرحلة غير موجودة' });
+  const days = Math.min(Math.max(parseInt(req.query.days) || 60, 7), BOOKING_WINDOW_DAYS);
+  const dates = [];
+  for (let i = 0; i <= days; i++) { const d = addDays(today(), i); if (s.days.includes(dow(d))) dates.push(d); }
+  const sold = await store.seatsSold(dates.map(d => flightId(s, d)));
+  const cap = capacityOf(s);
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    capacity: cap, currency: s.currency,
+    dates: dates.map(d => {
+      const online = sold[flightId(s, d)] || 0, offline = Number((s.offline_sold || {})[d]) || 0;
+      const f = flightFor(s, d, online, 1);
+      return { date: d, online, offline, left: Math.max(0, cap - online - offline), price: f.price, closed: (s.closed_dates || []).includes(d) };
+    }),
+  });
+}));
+
+// تعديل يوم معيّن: إقفاله، أو تسجيل مقاعد بيعت خارج الموقع (في المكتب مثلاً)
+app.put('/api/admin/schedules/:no/dates/:date', requireAdmin, ah(async (req, res) => {
+  const cur = SCHEDULES.find(x => x.no === req.params.no);
+  const date = req.params.date;
+  if (!cur) return res.status(404).json({ error: 'الرحلة غير موجودة' });
+  if (!isDate(date) || !cur.days.includes(dow(date))) return res.status(400).json({ error: 'الرحلة لا تعمل في هذا التاريخ' });
+  const s = { ...cur, closed_dates: [...(cur.closed_dates || [])], offline_sold: { ...(cur.offline_sold || {}) } };
+  if (req.body?.closed !== undefined) {
+    s.closed_dates = s.closed_dates.filter(d => d !== date && d >= today());
+    if (req.body.closed) s.closed_dates.push(date);
+  }
+  if (req.body?.offline !== undefined) {
+    const n = parseInt(toAsciiDigits(req.body.offline)) || 0;
+    if (n < 0 || n > capacityOf(s)) return res.status(400).json({ error: 'عدد المقاعد المباعة خارج الموقع غير صالح' });
+    if (n) s.offline_sold[date] = n; else delete s.offline_sold[date];
+  }
+  // تنظيف الأيام الماضية
+  for (const d of Object.keys(s.offline_sold)) if (d < today()) delete s.offline_sold[d];
+  s.updated_at = now();
+  await store.upsertSchedule(s);
+  SCHEDULES[SCHEDULES.indexOf(cur)] = s;
+  res.json({ ok: true });
 }));
 
 app.get('/api/health', ah(async (req, res) => {
@@ -511,6 +737,12 @@ async function start() {
   try {
     await store.init();
     SETTINGS = await store.getSettings();
+    SCHEDULES = await store.listSchedules();
+    if (!SCHEDULES.length) { // أول تشغيل: جدول افتراضي يعدّله المكتب من اللوحة
+      for (const s of SEED) await store.upsertSchedule({ ...s, created_at: now(), updated_at: now() });
+      SCHEDULES = await store.listSchedules();
+      console.log(`🗓  تمت تعبئة جدول الرحلات الافتراضي (${SCHEDULES.length} رحلة) — عدّله من لوحة التحكم ← الرحلات والأسعار`);
+    }
   } catch (e) {
     console.error('❌ تعذر الاتصال بقاعدة البيانات:', e.message);
     console.error('   تأكد من MONGODB_URI، ومن كلمة مرور المستخدم، ومن إضافة 0.0.0.0/0 في Network Access على Atlas.');
