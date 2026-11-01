@@ -26,6 +26,8 @@
 <style>
   /* ===== الطباعة: نطبع التذكرة فقط ===== */
   #ticket { display: none; }
+  .fi { width: 100%; border-radius: 12px; border: 1px solid #E2E8F0; padding: 10px 12px; font-size: 14px; outline: none; background: #fff; }
+  .fi:focus { border-color: #2563EB; }
   @media print {
     @page { size: A4; margin: 12mm; }
     body { background: #fff !important; }
@@ -65,6 +67,11 @@
 
 <!-- Dashboard -->
 <main id="dash" class="mx-auto hidden max-w-7xl px-4 py-8 md:px-8">
+  <nav id="views" class="mb-6 inline-flex rounded-xl bg-white p-1 text-sm font-semibold shadow-card">
+    <button data-view="bookings" class="view rounded-lg px-4 py-2">📋 الحجوزات</button>
+    <button data-view="flights" class="view rounded-lg px-4 py-2">✈️ الرحلات والأسعار</button>
+  </nav>
+  <div id="viewBookings">
   <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
     <div>
       <h1 class="text-2xl font-bold">الحجوزات</h1>
@@ -115,7 +122,90 @@
     </table>
     <p id="empty" class="hidden p-10 text-center text-ink-muted">لا توجد حجوزات.</p>
   </div>
+  </div><!-- /viewBookings -->
+
+  <!-- ================= الرحلات والأسعار ================= -->
+  <div id="viewFlights" class="hidden">
+    <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold">الرحلات والأسعار</h1>
+        <p class="text-sm text-ink-muted">كل رحلة لها فئات أسعار: تُباع الأرخص أولاً، وعند نفادها يرتفع السعر تلقائياً، وعند نفاد كل المقاعد تُقفل الرحلة.</p>
+      </div>
+      <button id="addFlight" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">+ إضافة رحلة</button>
+    </div>
+    <form id="fxForm" class="mb-4 flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-card" novalidate>
+      <div class="text-sm font-semibold">💱 أسعار الصرف <span class="block text-xs font-normal text-ink-muted">للرحلات المسعّرة بالدولار أو اليورو فقط — تتحول للدينار تلقائياً</span></div>
+      <label class="text-xs text-ink-muted">1 دولار = <input id="fxUsd" inputmode="decimal" dir="ltr" placeholder="—" class="w-24 rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-brand-600"> د.ل</label>
+      <label class="text-xs text-ink-muted">1 يورو = <input id="fxEur" inputmode="decimal" dir="ltr" placeholder="—" class="w-24 rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-brand-600"> د.ل</label>
+      <button class="rounded-lg border border-brand-600 px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50">حفظ الأسعار</button>
+    </form>
+    <div class="overflow-x-auto rounded-2xl bg-white shadow-card">
+      <table class="w-full min-w-[980px] text-right text-sm">
+        <thead class="border-b border-line bg-canvas text-xs font-semibold text-ink-muted">
+          <tr><th class="px-4 py-3">الرحلة</th><th class="px-4 py-3">المسار والوقت</th><th class="px-4 py-3">أيام التشغيل</th><th class="px-4 py-3">فئات الأسعار (مقاعد × سعر)</th><th class="px-4 py-3">الحالة</th><th class="px-4 py-3">إجراءات</th></tr>
+        </thead>
+        <tbody id="fRows" class="divide-y divide-line"></tbody>
+      </table>
+      <p id="fEmpty" class="hidden p-10 text-center text-ink-muted">لا توجد رحلات. أضف أول رحلة.</p>
+    </div>
+  </div>
 </main>
+
+<!-- ================= نموذج رحلة ================= -->
+<div id="flightModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-navy-900/60 p-4" role="dialog" aria-modal="true" aria-labelledby="fmTitle">
+  <form id="flightForm" class="my-6 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-card" novalidate>
+    <div class="mb-4 flex items-center justify-between">
+      <h2 id="fmTitle" class="text-xl font-bold">إضافة رحلة</h2>
+      <button type="button" data-fm-close class="text-2xl leading-none text-ink-muted" aria-label="إغلاق">×</button>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-3">
+      <label class="block"><span class="mb-1 block text-xs font-semibold">رقم الرحلة</span><input name="no" dir="ltr" placeholder="LN401" class="fi uppercase"></label>
+      <label class="block sm:col-span-2"><span class="mb-1 block text-xs font-semibold">شركة الطيران</span><input name="airline" placeholder="الخطوط الليبية" class="fi"></label>
+      <label class="block"><span class="mb-1 block text-xs font-semibold">رمز الشركة</span><input name="code" dir="ltr" maxlength="2" placeholder="LN" class="fi uppercase"></label>
+      <label class="block"><span class="mb-1 block text-xs font-semibold">لون الشعار</span><input name="color" type="color" value="#2563EB" class="h-[46px] w-full cursor-pointer rounded-xl border border-line"></label>
+      <label class="block"><span class="mb-1 block text-xs font-semibold">الوزن المسموح</span><input name="bag" placeholder="23 كغ" class="fi"></label>
+      <label class="block"><span class="mb-1 block text-xs font-semibold">من</span><select name="from" class="fi"></select></label>
+      <label class="block"><span class="mb-1 block text-xs font-semibold">إلى</span><select name="to" class="fi"></select></label>
+      <label class="block"><span class="mb-1 block text-xs font-semibold">المدة (دقيقة)</span><input name="dur" inputmode="numeric" dir="ltr" placeholder="165" class="fi"></label>
+      <label class="block"><span class="mb-1 block text-xs font-semibold">الإقلاع</span><input name="dep" type="time" class="fi"></label>
+      <label class="block"><span class="mb-1 block text-xs font-semibold">الوصول</span><input name="arr" type="time" class="fi"></label>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="block"><span class="mb-1 block text-xs font-semibold">التوقفات</span><select name="stops" class="fi"><option value="0">مباشرة</option><option value="1">1</option><option value="2">2</option></select></label>
+        <label class="block"><span class="mb-1 block text-xs font-semibold">عبر</span><input name="via" placeholder="تونس" class="fi"></label>
+      </div>
+    </div>
+    <fieldset class="mt-5"><legend class="mb-2 text-xs font-semibold">أيام التشغيل</legend><div id="fmDays" class="flex flex-wrap gap-2"></div></fieldset>
+    <fieldset class="mt-5 rounded-2xl border border-line p-4">
+      <legend class="px-1 text-sm font-semibold">فئات الأسعار</legend>
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p class="text-xs text-ink-muted">الترتيب مهم: الفئة الأولى تُباع أولاً. السعر للبالغ لكل اتجاه (الطفل 75%، الرضيع 10%، الضرائب تُضاف تلقائياً).</p>
+        <label class="text-xs font-semibold">العملة <select name="currency" class="mr-1 rounded-lg border border-line px-2 py-1 text-sm"><option value="LYD">دينار</option><option value="USD">دولار</option><option value="EUR">يورو</option></select></label>
+      </div>
+      <div id="fmTiers" class="space-y-2"></div>
+      <div class="mt-3 flex items-center justify-between text-sm"><button type="button" id="addTier" class="font-semibold text-brand-700 hover:underline">+ فئة أخرى</button><span id="fmCap" class="text-ink-muted"></span></div>
+    </fieldset>
+    <label class="mt-4 flex items-center gap-2 text-sm font-semibold"><input type="checkbox" name="active" checked class="h-4 w-4 accent-brand-600"> الرحلة معروضة للحجز</label>
+    <p id="fmErr" class="mt-3 hidden rounded-lg bg-red-50 p-3 text-xs text-red-700"></p>
+    <div class="mt-5 flex flex-wrap justify-between gap-2">
+      <button type="button" id="fmDelete" class="rounded-lg px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">حذف الرحلة</button>
+      <div class="mr-auto flex gap-2"><button type="button" data-fm-close class="rounded-lg px-4 py-2 text-sm font-semibold text-ink-muted hover:bg-canvas">إلغاء</button><button id="fmSave" class="rounded-lg bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">حفظ</button></div>
+    </div>
+  </form>
+</div>
+
+<!-- ================= المقاعد حسب اليوم ================= -->
+<div id="datesModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-navy-900/60 p-4" role="dialog" aria-modal="true" aria-labelledby="dmTitle">
+  <div class="my-6 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-card">
+    <div class="mb-1 flex items-center justify-between"><h2 id="dmTitle" class="text-xl font-bold">المقاعد حسب اليوم</h2><button type="button" data-dm-close class="text-2xl leading-none text-ink-muted" aria-label="إغلاق">×</button></div>
+    <p class="mb-4 text-xs text-ink-muted">«بيعت في المكتب» = مقاعد بعتها خارج الموقع (كاونتر، هاتف…) حتى لا تُباع مرتين. «إقفال» يخفي الرحلة في ذلك اليوم فقط.</p>
+    <div class="max-h-[65vh] overflow-y-auto rounded-xl border border-line">
+      <table class="w-full text-right text-sm">
+        <thead class="sticky top-0 bg-canvas text-xs font-semibold text-ink-muted"><tr><th class="px-3 py-2">اليوم</th><th class="px-3 py-2">من الموقع</th><th class="px-3 py-2">بيعت في المكتب</th><th class="px-3 py-2">المتبقي</th><th class="px-3 py-2">السعر الحالي</th><th class="px-3 py-2">إقفال</th></tr></thead>
+        <tbody id="dmRows" class="divide-y divide-line"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
 <!-- ================= الإعدادات ================= -->
 <div id="settingsModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-navy-900/60 p-4" role="dialog" aria-modal="true" aria-labelledby="setTitle">
@@ -488,6 +578,165 @@
   $('#waClear').addEventListener('click', () => { if (confirm('إزالة رقم واتساب المكتب؟ سيعمل الزر كمشاركة فقط.')) saveWa(''); });
   setModal.addEventListener('click', e => { if (e.target === setModal || e.target.closest('[data-set-close]')) closeSettings(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !setModal.classList.contains('hidden')) closeSettings(); });
+
+  // =============================================================
+  //  الرحلات والأسعار
+  // =============================================================
+  const DAY_NAMES = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const CUR = { LYD: 'د.ل', USD: '$', EUR: '€' };
+  let FL = { schedules: [], airports: {} }, editing = null;
+  const toAsciiNum = v => String(v ?? '').replace(/[٠-٩]/g, d => d.charCodeAt(0) - 0x660).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 0x6F0).replace(/[٫,]/g, '.');
+
+  function switchView(v) {
+    document.querySelectorAll('.view').forEach(b => {
+      const on = b.dataset.view === v;
+      b.classList.toggle('bg-navy-900', on); b.classList.toggle('text-white', on); b.classList.toggle('text-ink-muted', !on);
+    });
+    $('#viewBookings').classList.toggle('hidden', v !== 'bookings');
+    $('#viewFlights').classList.toggle('hidden', v !== 'flights');
+    if (v === 'flights') loadFlights().catch(err => toast(err.message, false));
+  }
+  $('#views').addEventListener('click', e => { const b = e.target.closest('[data-view]'); if (b) switchView(b.dataset.view); });
+
+  async function loadFlights() {
+    FL = await api('/api/admin/schedules');
+    $('#fxUsd').value = FL.fx_usd ?? ''; $('#fxEur').value = FL.fx_eur ?? '';
+    renderFlights();
+  }
+  const city = c => FL.airports[c]?.city || c;
+  function renderFlights() {
+    const list = [...FL.schedules].sort((a, b) => (a.from + a.to + a.dep).localeCompare(b.from + b.to + b.dep));
+    $('#fEmpty').classList.toggle('hidden', list.length > 0);
+    $('#fRows').innerHTML = list.map(s => {
+      const days = s.days.length === 7 ? 'يومياً' : s.days.map(d => DAY_NAMES[d]).join('، ');
+      const tiers = s.tiers.map((t, i) => `<span class="inline-block whitespace-nowrap rounded-md ${i ? 'bg-canvas' : 'bg-ok-50 text-ok-700'} px-2 py-0.5 text-xs font-semibold">${t.seats} × ${fmt(t.price)} ${CUR[s.currency]}</span>`).join(' ');
+      const st = !s.active ? badge(['موقوفة', 'bg-canvas text-ink-muted']) : !s.sellable ? badge(['بانتظار سعر الصرف', 'bg-accent-50 text-accent-600']) : badge(['معروضة', 'bg-ok-50 text-ok-700']);
+      return `<tr class="align-top hover:bg-canvas/60">
+        <td class="px-4 py-3"><div class="flex items-center gap-2"><span class="grid h-9 w-9 place-items-center rounded-lg text-xs font-bold text-white" style="background:${esc(s.color)}">${esc(s.code)}</span><div><p class="font-semibold" dir="ltr">${esc(s.no)}</p><p class="text-xs text-ink-muted">${esc(s.airline)}</p></div></div></td>
+        <td class="px-4 py-3"><p class="font-semibold">${esc(city(s.from))} ← ${esc(city(s.to))}</p><p class="text-xs text-ink-muted" dir="ltr">${s.from} ${s.dep} → ${s.to} ${s.arr}</p><p class="text-xs text-ink-subtle">${s.stops ? 'توقف' + (s.via ? ' · ' + esc(s.via) : '') : 'مباشرة'}</p></td>
+        <td class="px-4 py-3 text-xs">${days}</td>
+        <td class="px-4 py-3"><div class="flex flex-wrap gap-1">${tiers}</div><p class="mt-1 text-xs text-ink-subtle">السعة: ${s.capacity} مقعد</p></td>
+        <td class="px-4 py-3">${st}</td>
+        <td class="px-4 py-3"><div class="flex flex-wrap gap-1.5">
+          <button data-f="dates" data-no="${esc(s.no)}" class="whitespace-nowrap rounded-xl bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100">💺 المقاعد حسب اليوم</button>
+          <button data-f="edit" data-no="${esc(s.no)}" class="whitespace-nowrap rounded-xl bg-canvas px-3 py-1.5 text-xs font-semibold hover:bg-line">✏️ تعديل</button>
+          <button data-f="toggle" data-no="${esc(s.no)}" class="whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold ${s.active ? 'text-accent-600 hover:bg-accent-50' : 'text-ok-700 hover:bg-ok-50'}">${s.active ? 'إيقاف' : 'تفعيل'}</button>
+        </div></td></tr>`;
+    }).join('');
+  }
+
+  // ---------- نموذج الرحلة ----------
+  const fm = $('#flightForm'), fmModal = $('#flightModal');
+  function tierRow(t = {}) {
+    return `<div class="tier flex items-center gap-2"><span class="w-16 text-xs text-ink-muted"></span>
+      <input data-t="seats" inputmode="numeric" dir="ltr" placeholder="مقاعد" value="${t.seats ?? ''}" class="fi w-28">
+      <span class="text-ink-subtle">×</span>
+      <input data-t="price" inputmode="decimal" dir="ltr" placeholder="السعر" value="${t.price ?? ''}" class="fi w-36">
+      <button type="button" data-t-del class="rounded-lg px-2 py-1 text-lg text-red-500 hover:bg-red-50" aria-label="حذف الفئة">×</button></div>`;
+  }
+  function refreshTiers() {
+    const rows = [...$('#fmTiers').querySelectorAll('.tier')];
+    rows.forEach((r, i) => { r.querySelector('span').textContent = `الفئة ${i + 1}`; });
+    const cap = rows.reduce((n, r) => n + (parseInt(toAsciiNum(r.querySelector('[data-t=seats]').value)) || 0), 0);
+    $('#fmCap').textContent = `إجمالي المقاعد: ${cap}`;
+  }
+  $('#fmTiers').addEventListener('input', refreshTiers);
+  $('#fmTiers').addEventListener('click', e => { if (e.target.closest('[data-t-del]')) { e.target.closest('.tier').remove(); refreshTiers(); } });
+  $('#addTier').addEventListener('click', () => { $('#fmTiers').insertAdjacentHTML('beforeend', tierRow()); refreshTiers(); });
+
+  function openFlight(s) {
+    editing = s || null;
+    $('#fmTitle').textContent = s ? `تعديل الرحلة ${s.no}` : 'إضافة رحلة';
+    $('#fmErr').classList.add('hidden');
+    const opts = Object.entries(FL.airports).map(([c, a]) => `<option value="${c}">${esc(a.city)} (${c})</option>`).join('');
+    fm.from.innerHTML = opts; fm.to.innerHTML = opts;
+    const v = s || { no: '', airline: '', code: '', color: '#2563EB', bag: '23 كغ', from: 'MJI', to: 'IST', dur: '', dep: '', arr: '', stops: 0, via: '', days: [0, 1, 2, 3, 4, 5, 6], currency: 'LYD', tiers: [{ seats: 12, price: '' }, { seats: 12, price: '' }], active: true };
+    for (const k of ['no', 'airline', 'code', 'color', 'bag', 'from', 'to', 'dur', 'dep', 'arr', 'via', 'currency']) fm[k].value = v[k] ?? '';
+    fm.stops.value = String(v.stops || 0); fm.active.checked = v.active !== false;
+    fm.no.readOnly = !!s; fm.no.classList.toggle('bg-canvas', !!s);
+    $('#fmDays').innerHTML = DAY_NAMES.map((n, d) => `<label class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm has-[:checked]:border-brand-600 has-[:checked]:bg-brand-50"><input type="checkbox" value="${d}" ${v.days.includes(d) ? 'checked' : ''} class="accent-brand-600">${n}</label>`).join('');
+    $('#fmTiers').innerHTML = v.tiers.map(tierRow).join(''); refreshTiers();
+    $('#fmDelete').classList.toggle('hidden', !s);
+    fmModal.classList.remove('hidden'); fmModal.classList.add('flex');
+    (s ? fm.airline : fm.no).focus();
+  }
+  const closeFlight = () => { fmModal.classList.add('hidden'); fmModal.classList.remove('flex'); };
+  fmModal.addEventListener('click', e => { if (e.target === fmModal || e.target.closest('[data-fm-close]')) closeFlight(); });
+  fm.no.addEventListener('input', () => { if (!fm.code.value || fm.code.dataset.auto) { fm.code.value = fm.no.value.slice(0, 2).toUpperCase(); fm.code.dataset.auto = 1; } });
+  $('#addFlight').addEventListener('click', () => openFlight(null));
+
+  fm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const body = {
+      no: fm.no.value, airline: fm.airline.value, code: fm.code.value, color: fm.color.value, bag: fm.bag.value,
+      from: fm.from.value, to: fm.to.value, dur: toAsciiNum(fm.dur.value), dep: fm.dep.value, arr: fm.arr.value,
+      stops: fm.stops.value, via: fm.via.value, currency: fm.currency.value, active: fm.active.checked,
+      days: [...$('#fmDays').querySelectorAll('input:checked')].map(i => Number(i.value)),
+      tiers: [...$('#fmTiers').querySelectorAll('.tier')].map(r => ({ seats: toAsciiNum(r.querySelector('[data-t=seats]').value), price: toAsciiNum(r.querySelector('[data-t=price]').value) })),
+    };
+    $('#fmSave').disabled = true;
+    try {
+      await api(editing ? `/api/admin/schedules/${encodeURIComponent(editing.no)}` : '/api/admin/schedules', { method: editing ? 'PUT' : 'POST', body: JSON.stringify(body) });
+      closeFlight(); await loadFlights(); toast(editing ? 'تم حفظ التعديلات' : 'تمت إضافة الرحلة');
+    } catch (err) { $('#fmErr').textContent = err.message; $('#fmErr').classList.remove('hidden'); }
+    finally { $('#fmSave').disabled = false; }
+  });
+  $('#fmDelete').addEventListener('click', async () => {
+    if (!editing || !confirm(`حذف الرحلة ${editing.no} نهائياً؟ الحجوزات السابقة تبقى كما هي. (للإيقاف المؤقت استخدم «إيقاف» بدل الحذف)`)) return;
+    try { await api(`/api/admin/schedules/${encodeURIComponent(editing.no)}`, { method: 'DELETE' }); closeFlight(); await loadFlights(); toast('تم حذف الرحلة'); }
+    catch (err) { toast(err.message, false); }
+  });
+
+  $('#fRows').addEventListener('click', async e => {
+    const b = e.target.closest('[data-f]'); if (!b) return;
+    const s = FL.schedules.find(x => x.no === b.dataset.no); if (!s) return;
+    if (b.dataset.f === 'edit') openFlight(s);
+    if (b.dataset.f === 'dates') openDates(s);
+    if (b.dataset.f === 'toggle') {
+      try { await api(`/api/admin/schedules/${encodeURIComponent(s.no)}`, { method: 'PUT', body: JSON.stringify({ ...s, active: !s.active }) }); await loadFlights(); toast(s.active ? 'تم إيقاف الرحلة' : 'تم تفعيل الرحلة'); }
+      catch (err) { toast(err.message, false); }
+    }
+  });
+
+  $('#fxForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    try { await api('/api/settings', { method: 'PUT', body: JSON.stringify({ fx_usd: toAsciiNum($('#fxUsd').value), fx_eur: toAsciiNum($('#fxEur').value) }) }); await loadFlights(); toast('تم حفظ أسعار الصرف'); }
+    catch (err) { toast(err.message, false); }
+  });
+
+  // ---------- المقاعد حسب اليوم ----------
+  const dmModal = $('#datesModal'); let dmSched = null;
+  async function openDates(s) {
+    dmSched = s;
+    $('#dmTitle').textContent = `المقاعد حسب اليوم · ${s.no} (${city(s.from)} ← ${city(s.to)})`;
+    $('#dmRows').innerHTML = '<tr><td colspan="6" class="p-6 text-center text-ink-muted">جارٍ التحميل…</td></tr>';
+    dmModal.classList.remove('hidden'); dmModal.classList.add('flex');
+    try {
+      const d = await api(`/api/admin/schedules/${encodeURIComponent(s.no)}/dates?days=90`);
+      $('#dmRows').innerHTML = d.dates.map(x => {
+        const pct = Math.round((x.online + x.offline) / d.capacity * 100);
+        return `<tr data-date="${x.date}" class="${x.closed ? 'bg-canvas text-ink-subtle' : ''}">
+          <td class="px-3 py-2 whitespace-nowrap">${fmtDate(x.date)}</td>
+          <td class="px-3 py-2">${x.online}</td>
+          <td class="px-3 py-2"><input data-off inputmode="numeric" dir="ltr" value="${x.offline || ''}" placeholder="0" class="w-16 rounded-lg border border-line px-2 py-1 text-sm"></td>
+          <td class="px-3 py-2"><span class="font-semibold ${x.left === 0 ? 'text-red-600' : x.left <= 5 ? 'text-accent-600' : ''}">${x.left}</span><span class="text-xs text-ink-subtle"> / ${d.capacity}</span><div class="mt-1 h-1.5 w-20 rounded-full bg-line"><div class="h-1.5 rounded-full ${pct >= 90 ? 'bg-red-500' : 'bg-brand-600'}" style="width:${Math.min(pct, 100)}%"></div></div></td>
+          <td class="px-3 py-2 whitespace-nowrap">${x.left ? fmt(x.price) + ' د.ل' : '<span class="text-red-600">مكتملة</span>'}</td>
+          <td class="px-3 py-2"><input data-closed type="checkbox" ${x.closed ? 'checked' : ''} class="h-4 w-4 accent-red-600"></td></tr>`;
+      }).join('') || '<tr><td colspan="6" class="p-6 text-center text-ink-muted">لا توجد أيام تشغيل قادمة.</td></tr>';
+    } catch (err) { toast(err.message, false); }
+  }
+  dmModal.addEventListener('click', e => { if (e.target === dmModal || e.target.closest('[data-dm-close]')) { dmModal.classList.add('hidden'); dmModal.classList.remove('flex'); loadFlights().catch(() => {}); } });
+  async function saveDate(tr, body) {
+    try { await api(`/api/admin/schedules/${encodeURIComponent(dmSched.no)}/dates/${tr.dataset.date}`, { method: 'PUT', body: JSON.stringify(body) }); toast('تم الحفظ'); FL = await api('/api/admin/schedules'); dmSched = FL.schedules.find(x => x.no === dmSched.no); openDates(dmSched); }
+    catch (err) { toast(err.message, false); }
+  }
+  $('#dmRows').addEventListener('change', e => {
+    const tr = e.target.closest('tr'); if (!tr) return;
+    if (e.target.matches('[data-closed]')) saveDate(tr, { closed: e.target.checked });
+    if (e.target.matches('[data-off]')) saveDate(tr, { offline: toAsciiNum(e.target.value) || 0 });
+  });
+  switchView('bookings');
+
   $('#refresh').addEventListener('click', () => load().then(() => toast('تم التحديث')).catch(err => toast(err.message, false)));
   $('#search').addEventListener('input', render);
   $('#tabs').addEventListener('click', e => { const t = e.target.closest('.tab'); if (t) { filter = t.dataset.filter; render(); } });

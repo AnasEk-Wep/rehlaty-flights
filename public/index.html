@@ -633,7 +633,12 @@ $('#paxRows').addEventListener('click', e => {
 });
 const togglePax = open => { $('#paxPop').hidden = !open; $('#paxBtn').setAttribute('aria-expanded', open); };
 $('#paxBtn').addEventListener('click', () => togglePax($('#paxPop').hidden));
-$('#paxDone').addEventListener('click', () => togglePax(false));
+$('#paxDone').addEventListener('click', () => {
+  togglePax(false);
+  // الأسعار والمقاعد تعتمد على عدد المسافرين ← نعيد البحث إذا تغيّر العدد
+  if (searchedPax && searchedPax !== S.adults + S.children) search(stage === 'ret');
+});
+let searchedPax = 0;
 $('#paxPop').addEventListener('click', e => e.stopPropagation()); // النقر داخل النافذة لا يغلقها (الأزرار يُعاد رسمها)
 document.addEventListener('click', e => { if (!e.target.closest('#paxBtn')) togglePax(false); });
 
@@ -650,7 +655,8 @@ async function search(keepStage = false) {
   $('#results').innerHTML = Array.from({ length: 3 }, () => '<div class="h-32 animate-pulse rounded-2xl bg-surface shadow-card"></div>').join('');
   $('#nearby').innerHTML = '';
   try {
-    const data = await api(`/api/flights?${new URLSearchParams({ ...leg, adults: S.adults, children: S.children })}`);
+    const data = await api(`/api/flights?${new URLSearchParams({ ...leg, adults: S.adults, children: S.children, infants: S.infants })}`);
+    searchedPax = S.adults + S.children;
     results = data.flights;
     renderNearby(data.nearby, leg.date);
     setupFilters();
@@ -772,8 +778,9 @@ function render() {
     return;
   }
   updateFilterUi(list.length);
-  const cheapest = Math.min(...list.map(f => f.price)), fastest = Math.min(...list.map(f => f.duration_min));
-  $('#results').innerHTML = sorted(list).map(f => card(f, f.price === cheapest ? 'الأرخص' : f.duration_min === fastest ? 'الأسرع' : '')).join('');
+  const avail = list.filter(f => f.bookable !== false);
+  const cheapest = Math.min(...avail.map(f => f.price)), fastest = Math.min(...avail.map(f => f.duration_min));
+  $('#results').innerHTML = [...sorted(avail), ...list.filter(f => f.bookable === false)].map(f => card(f, f.bookable === false ? '' : f.price === cheapest ? 'الأرخص' : f.duration_min === fastest ? 'الأسرع' : '')).join('');
 }
 
 // عدد الفلاتر النشطة على زر «الفلترة» + عدد النتائج على زر «عرض النتائج»
@@ -813,11 +820,15 @@ function card(f, tag) {
       <div class="flex items-center justify-between gap-4 border-t border-line pt-4 md:w-56 md:flex-col md:items-end md:border-r md:border-t-0 md:pr-5 md:pt-0">
         <div class="md:text-left">
           ${tag ? `<span class="mb-1 inline-block rounded-full bg-accent-50 px-2 py-0.5 text-xs font-semibold text-accent-600">${tag}</span>` : ''}
-          ${f.seats_left ? `<span class="mb-1 inline-block rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">باقي ${f.seats_left} مقاعد</span>` : ''}
+          ${f.bookable === false ? `<span class="mb-1 inline-block rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">${f.seats_left ? `باقي ${f.seats_left} فقط` : 'مكتملة'}</span>`
+            : f.seats_left ? `<span class="mb-1 inline-block rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">${f.seats_left === 1 ? 'آخر مقعد!' : f.seats_left === 2 ? 'باقي مقعدين فقط' : `باقي ${f.seats_left} مقاعد`}</span>` : ''}
+          ${f.bookable !== false && f.price_rising ? '<span class="mb-1 inline-block rounded-full bg-accent-50 px-2 py-0.5 text-xs font-semibold text-accent-600">↑ السعر يرتفع قريباً</span>' : ''}
           <p class="text-2xl font-bold text-ink sm:text-h2">${fmt(f.price)} <span class="text-sm font-medium text-ink-muted">د.ل</span></p>
           <p class="text-xs text-ink-muted">للبالغ · ${isRet ? 'رحلة العودة' : S.trip === 'round' ? 'رحلة الذهاب' : 'اتجاه واحد'}</p>
         </div>
-        <button type="button" data-pick="${f.id}" class="btn-primary min-h-[48px] whitespace-nowrap px-4 sm:px-5">${label}</button>
+        ${f.bookable === false
+          ? `<button type="button" disabled class="min-h-[48px] cursor-not-allowed whitespace-nowrap rounded-xl bg-canvas px-4 text-sm font-semibold text-ink-subtle sm:px-5">${f.seats_left ? 'لا تكفي لعددكم' : 'لا توجد مقاعد'}</button>`
+          : `<button type="button" data-pick="${f.id}" class="btn-primary min-h-[48px] whitespace-nowrap px-4 sm:px-5">${label}</button>`}
       </div>
     </div>
   </article>`;
@@ -922,7 +933,11 @@ function calcCost() {
   let fare = 0;
   for (const [i, f] of legs().entries()) {
     const label = legs().length > 1 ? (i ? 'العودة' : 'الذهاب') : 'التذاكر';
-    const a = S.adults * f.price, c = S.children * Math.round(f.price * P.CHILD_RATE), inf = S.infants * Math.round(f.price * P.INFANT_RATE);
+    // كل مقعد بسعر فئته (مثل شركات الطيران) — السيرفر يرسل أسعار المقاعد المطلوبة بالترتيب
+    const sp = (f.seat_prices || []).length >= S.adults + S.children ? f.seat_prices : Array(S.adults + S.children).fill(f.price);
+    const a = sp.slice(0, S.adults).reduce((x, y) => x + y, 0);
+    const c = sp.slice(S.adults, S.adults + S.children).reduce((x, y) => x + Math.round(y * P.CHILD_RATE), 0);
+    const inf = S.infants * Math.round(sp[0] * P.INFANT_RATE);
     fare += a + c + inf;
     rows.push([`${label} <span class="text-ink-subtle">(${[S.adults && `${S.adults} بالغ`, S.children && `${S.children} طفل`, S.infants && `${S.infants} رضيع`].filter(Boolean).join(' + ')})</span>`, a + c + inf]);
   }
