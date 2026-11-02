@@ -2,6 +2,17 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
+<script>
+  // ════════════════════════════════════════════════════════════════
+  //  📞 رقم واتساب المكتب — غيّره هنا فقط
+  //  اكتبه بالصيغة الدولية بدون + (ليبيا: 218 ثم الرقم بدون الصفر) مثال: '218912345678'
+  //  يُقبل أيضاً الشكل المحلي '0912345678' ويُحوَّل تلقائياً.
+  //  اتركه فارغاً '' لاستخدام الرقم المحفوظ من لوحة التحكم ← الإعدادات.
+  // ════════════════════════════════════════════════════════════════
+  const OFFICE_WHATSAPP = '';
+  // أرقام الجوازات في رسالة واتساب: true = كاملة · false = مخفية جزئياً (A12****78)
+  const WA_INCLUDE_PASSPORTS = true;
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>حجز تذاكر الطيران</title>
 <meta name="description" content="احجز تذكرة طيرانك من ليبيا بأفضل الأسعار: طرابلس، بنغازي، إسطنبول، تونس، القاهرة. الدفع كاش أو سداد أو تداول.">
@@ -424,9 +435,9 @@
         <div class="flex justify-between border-t border-line pt-2"><span class="text-ink-muted">الإجمالي</span><span id="mTotal" class="font-bold"></span></div>
       </div>
       <p class="mt-3 text-xs leading-relaxed text-ink-muted">احتفظ برقم الحجز أو أرسله على واتساب ليتم تأكيده بسرعة. يمكنك متابعة حالته وطباعته في أي وقت من «تتبّع حجزي».</p>
-      <a id="waShare" href="#" target="_blank" rel="noopener" class="btn-wa mt-5 w-full sm:w-auto">
+      <a id="waShare" href="#" target="_blank" rel="noopener" class="btn-wa mt-5 w-full py-4 text-base shadow-lg shadow-emerald-500/30 sm:w-auto sm:px-8">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm4.5 12.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>
-        <span id="waLabel">مراسلة عبر واتساب فوراً لتأكيد الحجز</span>
+        <span id="waLabel">تأكيد الحجز عبر واتساب المكتب 💬</span>
       </a>
       <div class="mt-3 flex flex-col justify-center gap-2 sm:flex-row">
         <button type="button" id="trackFromSuccess" class="btn-primary">تتبّع حجزي</button>
@@ -1159,7 +1170,7 @@ form.addEventListener('submit', async e => {
     }) });
     HOLD.consumed = true; stopHold(); // المقعد صار محجوزاً نهائياً
     await refreshSettings(); // قد يكون المكتب غيّر الرقم بعد فتح الصفحة
-    showSuccess(booking, m);
+    showSuccess(booking, m, passengers);
   } catch (err) {
     const msg = err.message === 'Failed to fetch' ? 'تعذر الاتصال بالسيرفر. تأكد من الإنترنت وحاول مرة أخرى.' : (err.details?.length > 1 ? err.details.join(' · ') : err.message);
     $('#serverErr').textContent = msg; $('#serverErr').hidden = false;
@@ -1170,10 +1181,18 @@ form.addEventListener('submit', async e => {
 //  رقم واتساب المكتب — يُقرأ من السيرفر (GET /api/settings) ولا يُثبَّت في الكود
 //  بدون رقم: الزر يتحول إلى «مشاركة عبر واتساب» ويختار الزبون جهة الاتصال بنفسه
 // =============================================================
+// يحوّل أي صيغة (‎+218 91…، 00218…، 091…) إلى أرقام دولية فقط كما يتطلبها wa.me
+function normalizeWa(raw) {
+  let d = String(raw || '').replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  if (/^09[1-5]\d{7}$/.test(d)) d = '218' + d.slice(1);   // 0912345678 → 218912345678
+  else if (/^9[1-5]\d{7}$/.test(d)) d = '218' + d;        // 912345678  → 218912345678
+  return /^\d{8,15}$/.test(d) ? d : '';
+}
 async function refreshSettings() {
   try {
     const st = await api('/api/settings');
-    CFG.whatsapp = st.whatsapp || '';
+    CFG.whatsapp = normalizeWa(OFFICE_WHATSAPP) || st.whatsapp || '';
     if (st.site_name) CFG.site_name = st.site_name;
   } catch { /* نُبقي آخر قيمة معروفة */ }
   applySiteName();
@@ -1196,23 +1215,37 @@ function waLink(text) {
   // wa.me/<رقم>?text= ← محادثة المكتب مباشرة · wa.me/?text= ← واتساب يطلب اختيار جهة الاتصال (مشاركة)
   return `https://wa.me/${CFG.whatsapp || ''}?text=${encodeURIComponent(text)}`;
 }
-function showSuccess(b, m) {
-  $('#holdBar').hidden = true;
+const PAX_TYPE_AR = { adult: '', child: ' (طفل)', infant: ' (رضيع)' };
+const maskPassport = p => p.length > 4 ? p.slice(0, 3) + '*'.repeat(p.length - 5) + p.slice(-2) : p;
+function bookingWaText(b, m, passengers) {
   const out = picked.out, ret = S.trip === 'round' ? picked.ret : null, A = CFG.airports;
-  const name = ($('#paxFields [data-f="fullName"]') || {}).value || '';
+  const leg = f => `${dateAr(f.depart_date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · الساعة ${f.depart_time} · رحلة ${f.flight_no}`;
+  const pax = (passengers || []).map((p, i) => {
+    const pp = toAscii(p.passport || '').trim().toUpperCase();
+    return `${i + 1}. ${p.fullName.trim()}${PAX_TYPE_AR[p.type] || ''} — جواز: ${WA_INCLUDE_PASSPORTS ? pp : maskPassport(pp)}`;
+  });
+  return [
+    `مرحباً، أريد تأكيد حجزي من موقع ${siteName()} ✈️`,
+    ``,
+    `🔖 كود الحجز: ${b.ref}`,
+    `🛫 المسار: ${A[out.origin].city} (${out.origin}) ← ${A[out.destination].city} (${out.destination})${ret ? ' · ذهاب وعودة' : ''}`,
+    `📅 الذهاب: ${leg(out)}`,
+    ...(ret ? [`📅 العودة: ${leg(ret)}`] : []),
+    ``,
+    `👥 الركاب (${pax.length}):`,
+    ...pax,
+    ``,
+    `💰 الإجمالي: ${fmt(b.total)} د.ل`,
+    `💳 طريقة الدفع: ${PAY_NAMES[m]}`,
+  ].join('\n');
+}
+function showSuccess(b, m, passengers) {
+  $('#holdBar').hidden = true;
   $('#mRef').textContent = b.ref;
   $('#mPay').textContent = PAY_NAMES[m];
   $('#mTotal').textContent = `${fmt(b.total)} د.ل`;
-  $('#waLabel').textContent = CFG.whatsapp ? 'مراسلة عبر واتساب فوراً لتأكيد الحجز' : 'مشاركة الحجز عبر واتساب';
-  $('#waShare').href = waLink(
-    `مرحباً، أريد تأكيد حجزي من موقع ${siteName()} ✈️\n` +
-    `رقم الحجز: ${b.ref}\n` +
-    `الاسم: ${name}\n` +
-    `الرحلة: ${A[out.origin].city} ← ${A[out.destination].city} (${out.flight_no})\n` +
-    `الذهاب: ${out.depart_date} الساعة ${out.depart_time}` + (ret ? `\nالعودة: ${ret.depart_date} الساعة ${ret.depart_time}` : '') + `\n` +
-    `المسافرون: ${$('#paxLabel').textContent}\n` +
-    `الإجمالي: ${fmt(b.total)} د.ل · ${PAY_NAMES[m]}`
-  );
+  $('#waLabel').textContent = CFG.whatsapp ? 'تأكيد الحجز عبر واتساب المكتب 💬' : 'مشاركة الحجز عبر واتساب 💬';
+  $('#waShare').href = waLink(bookingWaText(b, m, passengers)); // waLink يشفّر النص بـ encodeURIComponent
   $('#trackFromSuccess').onclick = () => { closeModal(); openTrack(b.ref, $('#contactPhone').value); };
   $('#mForm').hidden = true; $('#mSuccess').hidden = false;
   goStep(3);
