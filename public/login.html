@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>تسجيل الدخول · لوحة التحكم</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --navy: #0F172A; --blue: #2563EB; --blue2: #1D4ED8; --line: #E2E8F0; --muted: #475569; --canvas: #F8FAFC; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; background: var(--canvas); color: var(--navy);
+    font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; }
+  header { background: var(--navy); color: #fff; }
+  header .in { max-width: 1120px; margin: auto; padding: 16px; display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+  header a { margin-right: auto; color: rgba(255,255,255,.7); font-size: 14px; font-weight: 500; text-decoration: none; }
+  main { flex: 1; display: grid; place-items: center; padding: 24px 16px; }
+  form { width: 100%; max-width: 380px; background: #fff; border-radius: 16px; padding: 28px 24px;
+    box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 28px rgba(15,23,42,.08); }
+  h1 { margin: 0; font-size: 22px; }
+  p.sub { margin: 6px 0 20px; color: var(--muted); font-size: 14px; }
+  label { display: block; margin-bottom: 14px; font-size: 13px; font-weight: 600; }
+  input { display: block; width: 100%; margin-top: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px;
+    font: inherit; font-size: 15px; outline: none; background: #fff; }
+  input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+  .pw { position: relative; }
+  .pw button { position: absolute; left: 8px; bottom: 7px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; padding: 6px; }
+  .btn { width: 100%; margin-top: 6px; padding: 13px; border: 0; border-radius: 12px; background: var(--blue); color: #fff;
+    font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; }
+  .btn:hover { background: var(--blue2); } .btn:disabled { opacity: .6; cursor: wait; }
+  .msg { display: none; margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; font-size: 13px; }
+  .msg.err { display: block; background: #FEF2F2; color: #B91C1C; }
+  .msg.info { display: block; background: #EFF6FF; color: var(--blue2); }
+  .hint { margin-top: 16px; font-size: 12px; color: #94A3B8; text-align: center; }
+</style>
+</head>
+<body>
+<header><div class="in"><img src="/favicon.svg" alt="" width="34" height="34"><span id="site">لوحة التحكم</span><a href="/">← الموقع</a></div></header>
+<main>
+  <form id="f" novalidate>
+    <h1>تسجيل الدخول</h1>
+    <p class="sub">لوحة تحكم الحجوزات والرحلات</p>
+    <p id="msg" class="msg" role="alert"></p>
+    <label>اسم المستخدم
+      <input id="u" name="username" autocomplete="username" dir="ltr" required autofocus>
+    </label>
+    <label class="pw">كلمة المرور
+      <input id="p" name="password" type="password" autocomplete="current-password" dir="ltr" required>
+      <button type="button" id="eye" aria-label="إظهار كلمة المرور">إظهار</button>
+    </label>
+    <button class="btn" id="go">دخول</button>
+    <p class="hint">الجلسة تبقى 12 ساعة على هذا الجهاز، ثم يُطلب الدخول من جديد.</p>
+  </form>
+</main>
+<script>
+  const $ = s => document.querySelector(s);
+  const msg = (t, cls = 'err') => { const m = $('#msg'); m.textContent = t; m.className = 'msg ' + cls; };
+  if (new URLSearchParams(location.search).has('expired')) msg('انتهت الجلسة — سجّل الدخول من جديد.', 'info');
+  // إذا كانت الجلسة ما زالت فعّالة نذهب للوحة مباشرة
+  fetch('/api/admin/me', { credentials: 'same-origin' }).then(r => { if (r.ok) location.replace('/admin.html'); }).catch(() => {});
+  fetch('/api/settings').then(r => r.json()).then(s => { if (s.site_name) { $('#site').textContent = s.site_name + ' · لوحة التحكم'; document.title = 'تسجيل الدخول · ' + s.site_name; } }).catch(() => {});
+  $('#eye').addEventListener('click', () => { const p = $('#p'), show = p.type === 'password'; p.type = show ? 'text' : 'password'; $('#eye').textContent = show ? 'إخفاء' : 'إظهار'; });
+  $('#f').addEventListener('submit', async e => {
+    e.preventDefault();
+    const username = $('#u').value.trim(), password = $('#p').value;
+    if (!username || !password) return msg('أدخل اسم المستخدم وكلمة المرور');
+    $('#go').disabled = true; $('#go').textContent = 'جارٍ الدخول…';
+    try {
+      const r = await fetch('/api/admin/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'تعذر الدخول');
+      location.replace('/admin.html');
+    } catch (err) {
+      msg(err.message === 'Failed to fetch' ? 'تعذر الاتصال بالسيرفر' : err.message);
+      $('#p').value = ''; $('#p').focus();
+    } finally { $('#go').disabled = false; $('#go').textContent = 'دخول'; }
+  });
+</script>
+</body>
+</html>

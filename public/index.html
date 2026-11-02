@@ -318,6 +318,14 @@
         <li class="h-px flex-1 bg-line"></li>
         <li data-step="3" class="step flex items-center gap-2"><span class="step-dot grid h-6 w-6 place-items-center rounded-full bg-line">3</span>التأكيد</li>
       </ol>
+      <!-- عدّاد قفل المقاعد -->
+      <div id="holdBar" hidden class="border-t border-line px-4 py-2.5 text-sm sm:px-6">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <p id="holdText" class="font-semibold"></p>
+          <button type="button" id="holdRetry" hidden class="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-700"></button>
+        </div>
+        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-line"><div id="holdProg" class="h-full rounded-full bg-brand-600 transition-[width] duration-1000 ease-linear" style="width:100%"></div></div>
+      </div>
     </div>
 
     <div id="mForm" class="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
@@ -325,7 +333,7 @@
       <form id="bookingForm" novalidate>
         <!-- Step 1 -->
         <div id="step1" class="space-y-6">
-          <p class="rounded-xl bg-brand-50 p-3 text-xs leading-relaxed text-brand-700">اكتب الاسم الكامل <b>كما هو في جواز السفر</b>. يمكنك كتابة الأرقام بالعربي أو الإنجليزي.</p>
+          <p class="rounded-xl bg-brand-50 p-3 text-xs leading-relaxed text-brand-700">اكتب الاسم واللقب <b>بالحروف الإنجليزية كما هو في جواز السفر</b> (يتحول تلقائياً لحروف كبيرة). الجواز لازم يكون <b>صالحاً 6 أشهر على الأقل</b> بعد تاريخ الرحلة.</p>
           <div id="paxFields" class="space-y-5"></div>
           <fieldset class="rounded-2xl border border-brand-100 bg-brand-50/50 p-5">
             <legend class="px-1 text-sm font-semibold">بيانات التواصل</legend>
@@ -862,12 +870,17 @@ function paxFieldset(type, i) {
   return `<fieldset class="pax rounded-2xl border border-line p-5" data-type="${type}">
     <legend class="px-1 text-sm font-semibold">المسافر ${i + 1} · ${PAX_NAMES[type]}</legend>
     <div class="grid gap-x-5 gap-y-4 sm:grid-cols-2">
-      <label class="block"><span class="field-label">الاسم الكامل (كما في الجواز)</span>
-        <input data-f="fullName" maxlength="100" autocomplete="off" placeholder="مثال: محمد علي سالم" class="field">
-        <span class="field-err" hidden>أدخل الاسم الكامل (3 أحرف على الأقل)</span></label>
+      <label class="block sm:col-span-2"><span class="field-label">الاسم واللقب بالإنجليزي (كما في الجواز)</span>
+        <input data-f="fullName" dir="ltr" maxlength="60" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="MOHAMED ALI SALEM" class="field text-right uppercase tracking-wide">
+        <span class="field-hint mt-1 block text-xs text-ink-subtle">الاسم الأول ثم اللقب — حروف إنجليزية فقط</span>
+        <span class="field-err" hidden></span></label>
       <label class="block"><span class="field-label">رقم جواز السفر</span>
-        <input data-f="passport" data-digits dir="ltr" maxlength="9" autocomplete="off" placeholder="A1234567" class="field text-right uppercase tracking-wider">
-        <span class="field-err" hidden>6 إلى 9 حروف أو أرقام إنجليزية</span></label>
+        <input data-f="passport" data-digits dir="ltr" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="A1234567" class="field text-right uppercase tracking-wider">
+        <span class="field-err" hidden></span></label>
+      <label class="block"><span class="field-label">تاريخ انتهاء الجواز</span>
+        <input data-f="expiry" type="date" dir="ltr" class="field text-right">
+        <span class="field-note mt-1 block text-xs" hidden></span>
+        <span class="field-err" hidden></span></label>
     </div>
   </fieldset>`;
 }
@@ -889,11 +902,14 @@ function openModal() {
   $$('#bookingForm .field').forEach(el => el.classList.remove('border-red-500'));
   $('#mForm').hidden = false; $('#mSuccess').hidden = true;
   goStep(1);
+  $$('#paxFields [data-f="expiry"]').forEach(i => { i.min = CFG.today; });
+  holdSeats(); // قفل المقاعد 10 دقائق
   modal.classList.remove('hidden'); modal.classList.add('flex');
   document.body.style.overflow = 'hidden';
   setTimeout(() => form.querySelector('input').focus(), 60);
 }
 function closeModal() {
+  releaseHold(); // الخروج يحرر المقعد فوراً
   modal.classList.add('hidden'); modal.classList.remove('flex');
   document.body.style.overflow = '';
   lastFocus && lastFocus.focus();
@@ -910,6 +926,62 @@ document.addEventListener('keydown', e => {
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 });
+
+// =============================================================
+//  قفل المقاعد المؤقت — 10 دقائق لإكمال الحجز
+// =============================================================
+const HOLD = { id: null, expires: 0, total: 600, timer: null, state: 'idle', consumed: false };
+const mmss = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+function holdUi(state, text, retryLabel) {
+  HOLD.state = state;
+  const bar = $('#holdBar'), prog = $('#holdProg');
+  bar.hidden = false;
+  bar.className = 'border-t px-4 py-2.5 text-sm sm:px-6 ' + ({ ok: 'border-line bg-brand-50/60 text-brand-700', warn: 'border-line bg-accent-50 text-accent-600', expired: 'border-line bg-red-50 text-red-700', failed: 'border-line bg-red-50 text-red-700', loading: 'border-line text-ink-muted' }[state] || '');
+  prog.className = 'h-full rounded-full transition-[width] duration-1000 ease-linear ' + (state === 'warn' ? 'bg-accent-500' : state === 'ok' ? 'bg-brand-600' : 'bg-red-500');
+  $('#holdText').innerHTML = text;
+  $('#holdRetry').hidden = !retryLabel; if (retryLabel) $('#holdRetry').textContent = retryLabel;
+  $('#payBtn').disabled = state === 'expired' || state === 'failed';
+}
+function tickHold() {
+  const left = Math.max(0, Math.round((HOLD.expires - Date.now()) / 1000));
+  $('#holdProg').style.width = (left / HOLD.total * 100) + '%';
+  if (left <= 0) {
+    stopHold(); // نبقي المعرّف: التجديد يستبدل القفل القديم إن كان ما زال موجوداً في السيرفر
+    holdUi('expired', '⌛ انتهت مهلة الحجز — المقاعد رجعت متاحة للجميع.', 'تجديد المهلة');
+    return;
+  }
+  holdUi(left <= 60 ? 'warn' : 'ok', `⏳ متبقي <b dir="ltr" class="tabular-nums">${mmss(left)}</b> لإتمام الحجز — ${S.adults + S.children > 1 ? 'المقاعد محجوزة' : 'المقعد محجوز'} لك مؤقتاً`);
+}
+function stopHold() { clearInterval(HOLD.timer); HOLD.timer = null; }
+async function holdSeats() {
+  stopHold(); HOLD.consumed = false;
+  holdUi('loading', '⏳ جارٍ تثبيت المقاعد لك…');
+  $('#holdProg').style.width = '100%';
+  try {
+    const r = await api('/api/hold-seat', { method: 'POST', body: JSON.stringify({
+      outboundId: picked.out.id, returnId: S.trip === 'round' && picked.ret ? picked.ret.id : null,
+      adults: S.adults, children: S.children, holdId: HOLD.id,
+    }) });
+    HOLD.id = r.holdId; HOLD.total = r.seconds; HOLD.expires = Date.now() + r.seconds * 1000;
+    tickHold(); HOLD.timer = setInterval(tickHold, 1000);
+  } catch (err) {
+    HOLD.id = null;
+    holdUi('failed', '😕 ' + esc(err.message === 'Failed to fetch' ? 'تعذر الاتصال بالسيرفر' : err.message), 'رجوع للرحلات');
+  }
+}
+function releaseHold() {
+  stopHold();
+  if (HOLD.id && !HOLD.consumed) {
+    const url = `/api/hold-seat/${encodeURIComponent(HOLD.id)}/release`;
+    if (!(navigator.sendBeacon && navigator.sendBeacon(url))) fetch(url, { method: 'POST', keepalive: true }).catch(() => {});
+  }
+  HOLD.id = null; HOLD.state = 'idle'; $('#holdBar').hidden = true; $('#payBtn').disabled = false;
+}
+$('#holdRetry').addEventListener('click', () => {
+  if (HOLD.state === 'failed') { closeModal(); search(stage === 'ret'); return; } // الرحلة امتلأت → نعرض الأسعار المحدّثة
+  holdSeats();
+});
+addEventListener('pagehide', releaseHold); // إغلاق التبويب أو مغادرة الصفحة
 
 const TITLES = { 1: 'بيانات المسافرين', 2: 'الدفع', 3: 'تم الحجز' };
 function goStep(n) {
@@ -976,15 +1048,72 @@ function normPhone(raw) {
   if (/^\+?2189[1-5]\d{7}$/.test(s)) s = '0' + s.replace(/^\+?218/, '');
   return /^09[1-5]\d{7}$/.test(s) ? s : null;
 }
+// ---------- قواعد بيانات المسافر (نفس قواعد السيرفر) ----------
+const NAME_RE = /^[A-Z]+(?:['-][A-Z]+)*(?: [A-Z]+(?:['-][A-Z]+)*)+$/;
+const PASSPORT_RE = /^(?=.*\d)[A-Z0-9]{6,9}$/;
+function addMonthsISO(iso, n) {
+  const d = new Date(iso + 'T00:00:00Z'), day = d.getUTCDate();
+  d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + n);
+  d.setUTCDate(Math.min(day, new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()));
+  return d.toISOString().slice(0, 10);
+}
+const minExpiry = () => addMonthsISO(lastDate(), 6);
+function nameError(v) {
+  if (!v) return 'أدخل الاسم واللقب كما في الجواز';
+  if (/[\u0600-\u06FF]/.test(v)) return 'اكتب الاسم بالحروف الإنجليزية كما هو مكتوب في الجواز';
+  if (!/ /.test(v)) return 'أدخل الاسم الأول واللقب (كلمتين على الأقل)';
+  if (!NAME_RE.test(v)) return 'حروف إنجليزية فقط (A–Z)، بدون أرقام أو رموز';
+  return null;
+}
+function passportError(v, all) {
+  if (!v) return 'أدخل رقم جواز السفر';
+  if (!/^[A-Z0-9]+$/.test(v)) return 'حروف وأرقام إنجليزية فقط، بدون مسافات أو رموز';
+  if (v.length < 6 || v.length > 9) return 'رقم الجواز من 6 إلى 9 خانات';
+  if (!PASSPORT_RE.test(v)) return 'رقم الجواز لازم يحتوي على أرقام';
+  if (all.filter(x => x === v).length > 1) return 'رقم الجواز مكرر لمسافر آخر';
+  return null;
+}
+// تنبيه انتهاء الجواز: أحمر = غير مقبول، برتقالي = مقبول لكن ينتهي قريباً
+const YMD = { day: 'numeric', month: 'long', year: 'numeric' };
+function expiryCheck(input) {
+  const note = input.parentElement.querySelector('.field-note'), v = input.value;
+  note.hidden = true;
+  if (!v) return 'أدخل تاريخ انتهاء الجواز';
+  const min = minExpiry();
+  if (v < CFG.today) return `الجواز منتهي (${dateAr(v, YMD)}) — جدّده قبل الحجز`;
+  if (v < min) return `الجواز لازم يكون صالحاً حتى ${dateAr(min, YMD)} على الأقل (6 أشهر بعد تاريخ الرحلة). جوازك ينتهي ${dateAr(v, YMD)}.`;
+  if (v < addMonthsISO(lastDate(), 9)) { note.textContent = `⚠️ مقبول، لكن جوازك ينتهي قريباً (${dateAr(v, YMD)}) — بعض الدول تشترط مدة أطول، تأكد من شروط وجهتك.`; note.className = 'field-note mt-1 block text-xs text-accent-600'; note.hidden = false; }
+  return null;
+}
+// تنسيق فوري أثناء الكتابة
+$('#paxFields').addEventListener('input', e => {
+  const el = e.target;
+  if (el.matches('[data-f="fullName"]')) {
+    const arabic = /[\u0600-\u06FF]/.test(el.value);
+    const v = el.value.toUpperCase().replace(/[^A-Z' -]/g, '').replace(/\s{2,}/g, ' ').replace(/^\s/, '');
+    if (v !== el.value) el.value = v;
+    if (arabic) setErr(el, 'اكتب الاسم بالحروف الإنجليزية كما هو مكتوب في الجواز');
+    else if (el.classList.contains('border-red-500')) setErr(el, nameError(v.trim()));
+  }
+  if (el.matches('[data-f="passport"]')) {
+    const v = toAscii(el.value).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (v !== el.value) el.value = v;
+    if (el.classList.contains('border-red-500')) setErr(el, null);
+  }
+});
+$('#paxFields').addEventListener('change', e => { if (e.target.matches('[data-f="expiry"]')) setErr(e.target, expiryCheck(e.target)); });
+
 function validateStep1() {
   let ok = true, firstBad = null;
   const mark = (el, bad) => { if (!setErr(el, bad) && ok) { ok = false; firstBad = el; } };
+  const allPassports = $$('#paxFields [data-f="passport"]').map(i => toAscii(i.value).trim().toUpperCase());
   $$('#paxFields .pax').forEach(fs => {
-    const name = fs.querySelector('[data-f="fullName"]'), pp = fs.querySelector('[data-f="passport"]');
-    name.value = name.value.trim().replace(/\s+/g, ' ');
-    mark(name, name.value.length < 3);
+    const name = fs.querySelector('[data-f="fullName"]'), pp = fs.querySelector('[data-f="passport"]'), ex = fs.querySelector('[data-f="expiry"]');
+    name.value = name.value.trim().replace(/\s+/g, ' ').toUpperCase();
+    mark(name, nameError(name.value));
     pp.value = toAscii(pp.value).trim().toUpperCase();
-    mark(pp, !/^[A-Z0-9]{6,9}$/.test(pp.value));
+    mark(pp, passportError(pp.value, allPassports));
+    mark(ex, expiryCheck(ex));
   });
   const ph = $('#contactPhone'), norm = normPhone(ph.value);
   mark(ph, !norm);
@@ -1008,6 +1137,7 @@ function validateStep2() {
 
 form.addEventListener('submit', async e => {
   e.preventDefault();
+  if (HOLD.state === 'expired' || HOLD.state === 'failed') { $('#holdBar').scrollIntoView({ block: 'nearest' }); return; }
   if (step === 1) { if (validateStep1()) goStep(2); return; }
   if (!validateStep2()) return;
   const btn = $('#payBtn'), m = payMethod();
@@ -1017,6 +1147,7 @@ form.addEventListener('submit', async e => {
     type: fs.dataset.type,
     fullName: fs.querySelector('[data-f="fullName"]').value,
     passport: fs.querySelector('[data-f="passport"]').value,
+    passportExpiry: fs.querySelector('[data-f="expiry"]').value,
   }));
   try {
     const { booking } = await api('/api/bookings', { method: 'POST', body: JSON.stringify({
@@ -1024,7 +1155,9 @@ form.addEventListener('submit', async e => {
       adults: S.adults, children: S.children, infants: S.infants, passengers,
       contactPhone: $('#contactPhone').value, email: $('#contactEmail').value,
       paymentMethod: m, phone: m === 'cod' ? null : $('#walletPhone').value, agree: $('#agree').checked,
+      holdId: HOLD.id,
     }) });
+    HOLD.consumed = true; stopHold(); // المقعد صار محجوزاً نهائياً
     await refreshSettings(); // قد يكون المكتب غيّر الرقم بعد فتح الصفحة
     showSuccess(booking, m);
   } catch (err) {
@@ -1064,6 +1197,7 @@ function waLink(text) {
   return `https://wa.me/${CFG.whatsapp || ''}?text=${encodeURIComponent(text)}`;
 }
 function showSuccess(b, m) {
+  $('#holdBar').hidden = true;
   const out = picked.out, ret = S.trip === 'round' ? picked.ret : null, A = CFG.airports;
   const name = ($('#paxFields [data-f="fullName"]') || {}).value || '';
   $('#mRef').textContent = b.ref;

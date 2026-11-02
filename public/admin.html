@@ -47,23 +47,12 @@
     </div>
     <div class="flex items-center gap-3">
       <a href="/" class="text-sm text-white/70 hover:text-white">الموقع</a>
+      <span id="whoami" class="hidden text-sm text-white/60"></span>
       <button id="settingsBtn" class="hidden rounded-lg bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20">⚙ الإعدادات</button>
       <button id="logout" class="hidden rounded-lg bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20">خروج</button>
     </div>
   </div>
 </header>
-
-<!-- Login -->
-<section id="login" class="mx-auto mt-20 max-w-sm px-4">
-  <form id="loginForm" class="rounded-2xl bg-white p-6 shadow-card">
-    <h1 class="text-xl font-bold">دخول لوحة التحكم</h1>
-    <p class="mt-1 text-sm text-ink-muted">أدخل رمز الإدارة (ADMIN_TOKEN) المضبوط في السيرفر.</p>
-    <input id="token" type="password" required autocomplete="current-password" placeholder="رمز الإدارة"
-      class="mt-4 w-full rounded-xl border border-line px-4 py-3 text-sm outline-none focus:border-brand-600">
-    <p id="loginErr" class="mt-2 hidden text-xs text-red-600"></p>
-    <button class="mt-4 w-full rounded-xl bg-brand-600 py-3 text-sm font-bold text-white hover:bg-brand-700">دخول</button>
-  </form>
-</section>
 
 <!-- Dashboard -->
 <main id="dash" class="mx-auto hidden max-w-7xl px-4 py-8 md:px-8">
@@ -265,21 +254,17 @@
   };
   const badge = ([label, cls]) => `<span class="inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${cls}">${label}</span>`;
 
-  // التوكن يُحفظ للجلسة فقط
-  const store = {
-    get: () => { try { return sessionStorage.getItem('tkr_admin') || ''; } catch { return ''; } },
-    set: v => { try { sessionStorage.setItem('tkr_admin', v); } catch {} },
-    clear: () => { try { sessionStorage.removeItem('tkr_admin'); } catch {} },
-  };
-  let token = store.get(), all = [], filter = 'all';
+  // الجلسة في كوكي HttpOnly يضعه السيرفر عند الدخول — الصفحة لا تحفظ أي رمز
+  let all = [], filter = 'all';
+  const toLogin = () => { location.replace('/login.html?expired=1'); };
 
   async function api(path, opts = {}) {
     const res = await fetch(path, {
-      ...opts,
-      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+      ...opts, credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
     });
     const data = await res.json().catch(() => ({}));
-    if (res.status === 401) throw new Error('رمز الإدارة غير صحيح');
+    if (res.status === 401) { toLogin(); throw new Error('انتهت الجلسة — سجّل الدخول من جديد'); }
     if (!res.ok) throw new Error(data.error || 'حدث خطأ');
     return data;
   }
@@ -347,7 +332,7 @@
         <td class="whitespace-nowrap px-4 py-3 font-bold ${cancelled ? 'line-through' : 'text-brand-700'}" dir="ltr">${esc(b.ref)}</td>
         <td class="px-4 py-3 text-ink-muted">${d.toLocaleDateString('ar-LY')}<br><span class="text-xs">${d.toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' })}</span></td>
         <td class="px-4 py-3"><span class="font-semibold">${esc(b.airline)}</span><br><span class="whitespace-nowrap text-xs text-ink-muted" dir="ltr">${esc(b.origin)} ${esc(b.depart_time)} → ${esc(b.destination)} ${esc(b.arrive_time)}</span></td>
-        <td class="px-4 py-3">${b.contact_phone ? `<div class="mb-1 text-xs font-semibold text-brand-700" dir="ltr">📞 ${esc(b.contact_phone)}</div>` : ''}${b.passengers.map(p => `<div>${esc(p.fullName)} <span class="text-xs text-ink-subtle" dir="ltr" title="${esc(p.passport)}">${esc(maskPassport(p.passport))}</span></div>`).join('')}</td>
+        <td class="px-4 py-3">${b.contact_phone ? `<div class="mb-1 text-xs font-semibold text-brand-700" dir="ltr">📞 ${esc(b.contact_phone)}</div>` : ''}${b.passengers.map(p => `<div>${esc(p.fullName)} <span class="text-xs text-ink-subtle" dir="ltr" title="${esc(p.passport)}">${esc(maskPassport(p.passport))}</span>${p.passport_expiry ? ` <span class="text-[11px] text-ink-subtle" title="انتهاء الجواز">· ⏳ ${esc(p.passport_expiry)}</span>` : ''}</div>`).join('')}</td>
         <td class="px-4 py-3">${PAY[b.payment_method] || esc(b.payment_method)}${b.phone ? `<br><span class="text-xs text-ink-muted" dir="ltr">محفظة: ${esc(b.phone)}</span>` : ''}</td>
         <td class="space-y-1 px-4 py-3">${badge(BOOKING_STATUS[b.booking_status] || [b.booking_status, 'bg-canvas'])}<br>${badge(cancelled && b.status === 'paid' ? ['مدفوع · يلزم استرداد', 'bg-red-50 text-red-700'] : (PAY_STATUS[b.status] || [b.status, 'bg-canvas']))}</td>
         <td class="px-4 py-3 font-bold">${fmt(b.total)} <span class="text-xs font-medium text-ink-muted">د.ل</span></td>
@@ -487,20 +472,15 @@
   }
 
   // ===== Wiring =====
-  function show(loggedIn) {
-    $('#login').classList.toggle('hidden', loggedIn);
-    $('#dash').classList.toggle('hidden', !loggedIn);
-    $('#logout').classList.toggle('hidden', !loggedIn);
-    $('#settingsBtn').classList.toggle('hidden', !loggedIn);
+  function show(user) {
+    $('#dash').classList.remove('hidden');
+    $('#logout').classList.remove('hidden');
+    $('#settingsBtn').classList.remove('hidden');
+    $('#whoami').textContent = '👤 ' + user; $('#whoami').classList.remove('hidden');
   }
-
-  $('#loginForm').addEventListener('submit', async e => {
-    e.preventDefault();
-    token = $('#token').value.trim();
-    try { await load(); store.set(token); show(true); $('#loginErr').classList.add('hidden'); }
-    catch (err) { $('#loginErr').textContent = err.message; $('#loginErr').classList.remove('hidden'); }
+  $('#logout').addEventListener('click', async () => {
+    try { await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' }); } finally { location.replace('/login.html'); }
   });
-  $('#logout').addEventListener('click', () => { store.clear(); token = ''; all = []; show(false); });
 
   // ===== الإعدادات: رقم واتساب المكتب =====
   const setModal = $('#settingsModal');
@@ -561,8 +541,8 @@
     const btn = $('#exportCsv');
     btn.disabled = true; btn.style.opacity = '.6';
     try {
-      const res = await fetch('/api/bookings/export.csv', { headers: { Authorization: 'Bearer ' + token } });
-      if (res.status === 401) throw new Error('رمز الإدارة غير صحيح');
+      const res = await fetch('/api/bookings/export.csv', { credentials: 'same-origin' });
+      if (res.status === 401) { toLogin(); throw new Error('انتهت الجلسة'); }
       if (!res.ok) throw new Error('تعذر تصدير الحجوزات');
       const blob = await res.blob();
       const name = (/filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '') || [])[1] || 'bookings.csv';
@@ -741,7 +721,10 @@
   $('#search').addEventListener('input', render);
   $('#tabs').addEventListener('click', e => { const t = e.target.closest('.tab'); if (t) { filter = t.dataset.filter; render(); } });
 
-  if (token) load().then(() => show(true)).catch(() => { store.clear(); show(false); });
+  // التحقق من الجلسة عند فتح الصفحة (السيرفر يحوّل لصفحة الدخول أصلاً، وهذا احتياط لو انتهت أثناء الاستخدام)
+  api('/api/admin/me').then(me => { show(me.user); return load(); }).catch(err => toast(err.message, false));
+  // فحص دوري كل 5 دقائق: إذا انتهت الجلسة نرجع لصفحة الدخول
+  setInterval(() => { fetch('/api/admin/me', { credentials: 'same-origin' }).then(r => { if (r.status === 401) toLogin(); }).catch(() => {}); }, 5 * 60_000);
 </script>
 </body>
 </html>
