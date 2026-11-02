@@ -8,7 +8,10 @@
 //    POST  /api/bookings             ← إنشاء حجز
 //    GET   /api/track                ← تتبّع حجز: ?ref=TKR-XXXXXX&phone=091XXXXXXX
 //    GET   /api/settings             ← رقم واتساب المكتب الحالي (فارغ = غير معيَّن)
-//  الإدارة (رمز في الهيدر فقط — Authorization: Bearer أو x-admin-token):
+//    POST  /api/hold-seat            ← قفل المقاعد 10 دقائق أثناء إدخال البيانات { outboundId, returnId?, adults, children, holdId? }
+//    POST  /api/hold-seat/:id/release← تحرير القفل
+//  الإدارة (جلسة بعد تسجيل الدخول — كوكي HttpOnly):
+//    POST  /api/admin/login · /api/admin/logout · GET /api/admin/me
 //    GET   /api/bookings             ← كل الحجوزات
 //    GET   /api/bookings/:ref        ← حجز واحد (للتذكرة)
 //    PATCH /api/bookings/:ref/status ← تأكيد / إلغاء / تم استلام الدفع
@@ -27,11 +30,18 @@ const { store, DEFAULT_SETTINGS } = require('./store');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '123456';
-
-if (!process.env.ADMIN_TOKEN || ADMIN_TOKEN.length < 12) {
-  console.warn('⚠️  ADMIN_TOKEN ضعيف أو غير مضبوط. استخدم رمزاً طويلاً (12 حرفاً فأكثر) قبل فتح الموقع للعامة.');
-}
+// ---------- دخول الإدارة: اسم مستخدم + كلمة مرور من متغيرات البيئة ----------
+// ADMIN_USER / ADMIN_PASS  ← بيانات الدخول (Render ← Environment)
+// SESSION_SECRET           ← مفتاح توقيع الجلسات (اختياري لكن يُنصح به: نص عشوائي طويل)
+// للتوافق مع الإعداد القديم: إذا لم تُضبط ADMIN_PASS نستخدم ADMIN_TOKEN كلمةَ مرور للمستخدم admin
+const ADMIN_USER = (process.env.ADMIN_USER || 'admin').trim();
+const ADMIN_PASS = process.env.ADMIN_PASS || process.env.ADMIN_TOKEN || '';
+const SESSION_HOURS = 12;
+const SESSION_SECRET = process.env.SESSION_SECRET
+  || crypto.createHash('sha256').update(`rehlati-session|${ADMIN_USER}|${ADMIN_PASS}`).digest('hex');
+if (!process.env.ADMIN_PASS) console.warn('⚠️  ADMIN_PASS غير مضبوط' + (process.env.ADMIN_TOKEN ? ' — نستخدم ADMIN_TOKEN مؤقتاً كلمة مرور للمستخدم admin.' : ' — لوحة التحكم مقفلة حتى تضبط ADMIN_USER و ADMIN_PASS.'));
+else if (ADMIN_PASS.length < 10) console.warn('⚠️  ADMIN_PASS قصيرة. استخدم 10 أحرف فأكثر.');
+if (!process.env.SESSION_SECRET) console.warn('ℹ️  SESSION_SECRET غير مضبوط — نشتقّه من كلمة المرور (تغيير كلمة المرور يُخرج كل الجلسات).');
 
 // -------------------------------------------------------------
 // أدوات عامة
@@ -212,18 +222,42 @@ function flightFor(s, date, soldOnline = 0, need = 1, infants = 0) {
   };
 }
 
-async function findFlights(from, to, date, need = 1, infants = 0) {
-  const list = SCHEDULES.filter(s => sellable(s) && s.from === from && s.to === to && operates(s, date));
-  const sold = await store.seatsSold(list.map(s => flightId(s, date)));
-  return list.map(s => flightFor(s, date, sold[flightId(s, date)] || 0, need, infants));
+// -------------------------------------------------------------
+// قفل المقاعد المؤقت (10 دقائق) — في ذاكرة السيرفر (سيرفر واحد على Render)
+// المقاعد المقفولة تُحسب كأنها مباعة للزبائن الآخرين حتى يكتمل الحجز أو ينتهي الوقت
+// -------------------------------------------------------------
+const HOLD_MINUTES = 10;
+const HOLDS = new Map(); // holdId → { flights: [id…], seats, expires, ip }
+function purgeHolds() { const t = Date.now(); for (const [k, h] of HOLDS) if (h.expires <= t) HOLDS.delete(k); }
+setInterval(purgeHolds, 30_000).unref();
+function heldSeats(ids, exceptHold) {
+  purgeHolds();
+  const out = {};
+  for (const [k, h] of HOLDS) {
+    if (k === exceptHold) continue;
+    for (const id of h.flights) if (ids.includes(id)) out[id] = (out[id] || 0) + h.seats;
+  }
+  return out;
 }
-async function flightById(id, need = 1) {
+// المباع + المقفول مؤقتاً (ما عدا قفل الزبون نفسه)
+async function occupied(ids, exceptHold) {
+  const sold = await store.seatsSold(ids), held = heldSeats(ids, exceptHold), out = {};
+  for (const id of ids) out[id] = (sold[id] || 0) + (held[id] || 0);
+  return out;
+}
+
+async function findFlights(from, to, date, need = 1, infants = 0, exceptHold) {
+  const list = SCHEDULES.filter(s => sellable(s) && s.from === from && s.to === to && operates(s, date));
+  const occ = await occupied(list.map(s => flightId(s, date)), exceptHold);
+  return list.map(s => flightFor(s, date, occ[flightId(s, date)] || 0, need, infants));
+}
+async function flightById(id, need = 1, exceptHold) {
   const m = /^([A-Z0-9]{2}\d{1,4})-(\d{4}-\d{2}-\d{2})$/.exec(String(id || ''));
   if (!m || !isDate(m[2])) return null;
   const s = SCHEDULES.find(x => x.no === m[1]);
   if (!s || !sellable(s) || !operates(s, m[2])) return null;
-  const sold = await store.seatsSold([id]);
-  return flightFor(s, m[2], sold[id] || 0, need);
+  const occ = await occupied([id], exceptHold);
+  return flightFor(s, m[2], occ[id] || 0, need);
 }
 
 // تكلفة الحجز: كل مقعد بسعر فئته، الطفل 75% من سعر مقعده، الرضيع 10% من أول مقعد
@@ -292,7 +326,10 @@ function validateSchedule(body, existing) {
 // -------------------------------------------------------------
 // التحقق من بيانات الحجز
 // -------------------------------------------------------------
-const PASSPORT_RE = /^[A-Z0-9]{6,9}$/;
+const PASSPORT_RE = /^(?=.*\d)[A-Z0-9]{6,9}$/;        // 6–9 حروف/أرقام إنجليزية وفيه رقم واحد على الأقل
+const NAME_RE = /^[A-Z]+(?:['-][A-Z]+)*(?: [A-Z]+(?:['-][A-Z]+)*)+$/; // اسم ولقب على الأقل، حروف إنجليزية فقط
+const PASSPORT_MIN_MONTHS = 6;                                     // صلاحية الجواز بعد آخر رحلة
+const addMonths = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); const day = d.getUTCDate(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + n); d.setUTCDate(Math.min(day, new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate())); return d.toISOString().slice(0, 10); };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function validateBooking(body) {
@@ -306,8 +343,9 @@ async function validateBooking(body) {
     infants: parseInt(toAsciiDigits(b.infants)) || 0,
   };
   const need = Math.max(counts.adults + counts.children, 1);
-  const out = await flightById(b.outboundId, need);
-  const ret = tripType === 'round' ? await flightById(b.returnId, need) : null;
+  const holdId = typeof b.holdId === 'string' ? b.holdId : undefined; // مقاعد هذا الزبون المقفولة لا تُحسب ضده
+  const out = await flightById(b.outboundId, need, holdId);
+  const ret = tripType === 'round' ? await flightById(b.returnId, need, holdId) : null;
   if (!out) errors.push('رحلة الذهاب غير متاحة');
   else if (!out.bookable) errors.push('لا توجد مقاعد كافية على رحلة الذهاب — اختر رحلة أخرى');
   else if (out.depart_date < today()) errors.push('رحلة الذهاب في تاريخ ماضٍ');
@@ -327,12 +365,21 @@ async function validateBooking(body) {
   const list = Array.isArray(b.passengers) ? b.passengers : [];
   if (list.length !== paxTotal) errors.push('عدد بيانات المسافرين لا يطابق العدد المختار');
   const expected = [...Array(counts.adults).fill('adult'), ...Array(counts.children).fill('child'), ...Array(counts.infants).fill('infant')];
+  // الجواز لازم يكون صالحاً 6 أشهر على الأقل بعد آخر رحلة (العودة إن وُجدت)
+  const lastTravel = (ret && ret.depart_date) || (out && out.depart_date) || today();
+  const minExpiry = addMonths(lastTravel, PASSPORT_MIN_MONTHS);
+  const seenPassports = new Set();
   const passengers = list.map((p, i) => {
-    const fullName = String(p?.fullName ?? '').trim().replace(/\s+/g, ' ');
+    const fullName = String(p?.fullName ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
     const passport = toAsciiDigits(p?.passport).trim().toUpperCase();
-    if (fullName.length < 3 || fullName.length > 100) errors.push(`اسم المسافر ${i + 1} غير صالح`);
-    if (!PASSPORT_RE.test(passport)) errors.push(`رقم جواز المسافر ${i + 1} غير صالح (6–9 حروف أو أرقام إنجليزية)`);
-    return { fullName, passport, type: expected[i] || 'adult' };
+    const passport_expiry = toAsciiDigits(p?.passportExpiry).trim();
+    if (fullName.length > 60 || !NAME_RE.test(fullName)) errors.push(`اسم المسافر ${i + 1}: اكتب الاسم واللقب بالحروف الإنجليزية كما في الجواز`);
+    if (!PASSPORT_RE.test(passport)) errors.push(`رقم جواز المسافر ${i + 1} غير صالح (6–9 حروف وأرقام إنجليزية)`);
+    else if (seenPassports.has(passport)) errors.push(`رقم جواز المسافر ${i + 1} مكرر`);
+    seenPassports.add(passport);
+    if (!isDate(passport_expiry)) errors.push(`أدخل تاريخ انتهاء جواز المسافر ${i + 1}`);
+    else if (passport_expiry < minExpiry) errors.push(`جواز المسافر ${i + 1} لازم يكون صالحاً حتى ${minExpiry} على الأقل (6 أشهر بعد تاريخ الرحلة)`);
+    return { fullName, passport, passport_expiry, type: expected[i] || 'adult' };
   });
 
   const contact_phone = normalizePhone(b.contactPhone);
@@ -352,7 +399,7 @@ async function validateBooking(body) {
 
   if (b.agree !== true) errors.push('يجب الموافقة على الشروط');
 
-  return { errors, data: { tripType, out, ret, counts, passengers, contact_phone, email, method, phone } };
+  return { errors, data: { tripType, out, ret, counts, passengers, contact_phone, email, method, phone, holdId } };
 }
 
 async function newRef() {
@@ -386,27 +433,51 @@ const STATUS_ACTIONS = {
 };
 
 // -------------------------------------------------------------
-// صلاحية الإدارة — الرمز في الهيدر فقط (أُزيل ?token= لأنه يُحفظ في سجل المتصفح والسيرفرات)
+// صلاحية الإدارة — جلسة موقّعة (JWT · HS256) في كوكي HttpOnly
+// JavaScript في المتصفح لا يقرأ الكوكي (حماية من سرقة الجلسة)، و SameSite=Strict يمنع الطلبات من مواقع أخرى
 // -------------------------------------------------------------
-function readToken(req) {
+const COOKIE = 'rh_admin';
+const b64u = buf => Buffer.from(buf).toString('base64url');
+const passFp = crypto.createHash('sha256').update(ADMIN_USER + '\n' + ADMIN_PASS).digest('base64url').slice(0, 12); // تغيير كلمة المرور يُبطل الجلسات القديمة
+function signJwt(payload) {
+  const head = b64u(JSON.stringify({ alg: 'HS256', typ: 'JWT' })), body = b64u(JSON.stringify(payload));
+  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(head + '.' + body).digest('base64url');
+  return `${head}.${body}.${sig}`;
+}
+function verifyJwt(token) {
+  const parts = String(token || '').split('.');
+  if (parts.length !== 3) return null;
+  const [head, body, sig] = parts;
+  const good = crypto.createHmac('sha256', SESSION_SECRET).update(head + '.' + body).digest();
+  let given; try { given = Buffer.from(sig, 'base64url'); } catch { return null; }
+  if (given.length !== good.length || !crypto.timingSafeEqual(given, good)) return null;
+  let p; try { p = JSON.parse(Buffer.from(body, 'base64url').toString()); } catch { return null; }
+  if (!p || p.sub !== ADMIN_USER || p.fp !== passFp || !(p.exp > Date.now() / 1000)) return null;
+  return p;
+}
+function readCookie(req, name) {
+  for (const part of String(req.headers.cookie || '').split(';')) {
+    const i = part.indexOf('=');
+    if (i > 0 && part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return '';
+}
+function sessionOf(req) {
   const auth = req.get('authorization') || '';
-  return (auth.startsWith('Bearer ') ? auth.slice(7) : '') || req.get('x-admin-token') || '';
+  return verifyJwt(readCookie(req, COOKIE) || (auth.startsWith('Bearer ') ? auth.slice(7) : ''));
+}
+function setSessionCookie(req, res, token, maxAgeSec) {
+  const secure = req.secure || req.get('x-forwarded-proto') === 'https';
+  res.append('Set-Cookie', `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSec}${secure ? '; Secure' : ''}`);
 }
 function requireAdmin(req, res, next) {
-  const key = req.ip, t = Date.now();
-  const h = badTokenHits.get(key);
-  if (h && h.reset > t && h.count >= 10) {
-    res.set('Retry-After', String(Math.ceil((h.reset - t) / 1000)));
-    return res.status(429).json({ error: 'محاولات دخول كثيرة، حاول بعد 15 دقيقة' });
-  }
-  const a = Buffer.from(String(readToken(req))), b = Buffer.from(ADMIN_TOKEN);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-    const cur = h && h.reset > t ? h : { count: 0, reset: t + 15 * 60_000 };
-    cur.count++; badTokenHits.set(key, cur);
-    return res.status(401).json({ error: 'رمز الإدارة غير صحيح' });
-  }
+  const s = sessionOf(req);
+  if (!s) return res.status(401).json({ error: 'انتهت الجلسة أو لم تسجّل الدخول', login: '/login.html' });
+  req.admin = s;
   next();
 }
+// مقارنة ثابتة الزمن (لا تكشف طول أو بداية كلمة المرور)
+const sameSecret = (a, b) => crypto.timingSafeEqual(crypto.createHash('sha256').update(String(a)).digest(), crypto.createHash('sha256').update(String(b)).digest());
 
 // -------------------------------------------------------------
 // التطبيق
@@ -423,7 +494,83 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '30kb' }));
 app.use('/api', rateLimit(300, 60_000)); // حد عام: 300 طلب في الدقيقة لكل IP
+// صفحة اللوحة: بدون جلسة ← صفحة الدخول
+app.get(['/admin', '/admin.html'], (req, res, next) => {
+  if (!sessionOf(req)) return res.redirect(302, '/login.html');
+  res.set('Cache-Control', 'no-store');
+  if (req.path === '/admin') return res.redirect(302, '/admin.html');
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ---------- دخول / خروج الإدارة ----------
+app.post('/api/admin/login', ah(async (req, res) => {
+  const key = req.ip, t = Date.now();
+  const h = badTokenHits.get(key);
+  if (h && h.reset > t && h.count >= 8) {
+    res.set('Retry-After', String(Math.ceil((h.reset - t) / 1000)));
+    return res.status(429).json({ error: 'محاولات دخول كثيرة، حاول بعد 15 دقيقة' });
+  }
+  if (!ADMIN_PASS) return res.status(503).json({ error: 'لم تُضبط بيانات الدخول في السيرفر (ADMIN_USER و ADMIN_PASS)' });
+  const user = String(req.body?.username ?? '').trim(), pass = String(req.body?.password ?? '');
+  const ok = sameSecret(user.toLowerCase(), ADMIN_USER.toLowerCase()) & sameSecret(pass, ADMIN_PASS); // & (وليس &&) حتى يُفحص الاثنان دائماً
+  if (!ok) {
+    const cur = h && h.reset > t ? h : { count: 0, reset: t + 15 * 60_000 };
+    cur.count++; badTokenHits.set(key, cur);
+    await new Promise(r => setTimeout(r, 400)); // إبطاء التخمين
+    return res.status(401).json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
+  }
+  badTokenHits.delete(key);
+  const iat = Math.floor(t / 1000), exp = iat + SESSION_HOURS * 3600;
+  setSessionCookie(req, res, signJwt({ sub: ADMIN_USER, fp: passFp, iat, exp }), SESSION_HOURS * 3600);
+  console.log(`[admin] login ${ADMIN_USER} from ${key}`);
+  res.json({ ok: true, user: ADMIN_USER, expires_at: new Date(exp * 1000).toISOString() });
+}));
+app.post('/api/admin/logout', (req, res) => {
+  setSessionCookie(req, res, '', 0);
+  res.json({ ok: true });
+});
+app.get('/api/admin/me', requireAdmin, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ user: req.admin.sub, expires_at: new Date(req.admin.exp * 1000).toISOString() });
+});
+
+// ---------- قفل المقاعد المؤقت ----------
+const holdLimiter = rateLimit(30, 15 * 60_000, 'محاولات كثيرة، حاول بعد قليل');
+app.post('/api/hold-seat', holdLimiter, ah(async (req, res) => {
+  await withBookingLock(async () => {
+    const b = req.body || {};
+    const adults = parseInt(toAsciiDigits(b.adults)) || 0, children = parseInt(toAsciiDigits(b.children)) || 0;
+    const seats = adults + children;
+    if (adults < 1 || seats > PRICING.MAX_PAX) return res.status(400).json({ error: 'عدد المسافرين غير صالح' });
+    const ids = [b.outboundId, b.returnId].filter(Boolean).map(String);
+    if (!ids.length || ids.length > 2) return res.status(400).json({ error: 'اختر الرحلة' });
+    // تجديد/استبدال قفل سابق لنفس الزبون
+    const prev = typeof b.holdId === 'string' && HOLDS.get(b.holdId);
+    if (prev && prev.ip !== req.ip) return res.status(403).json({ error: 'قفل غير صالح' });
+    // حد أقصى 2 أقفال نشطة لكل جهاز (يمنع حجز الرحلة كلها وهمياً)
+    purgeHolds();
+    const mine = [...HOLDS.entries()].filter(([k, h]) => h.ip === req.ip && k !== b.holdId);
+    if (mine.length >= 2) HOLDS.delete(mine.sort((x, y) => x[1].expires - y[1].expires)[0][0]);
+    for (const id of ids) {
+      const f = await flightById(id, seats, prev ? b.holdId : undefined);
+      if (!f) return res.status(404).json({ error: 'الرحلة غير متاحة' });
+      if (!f.bookable) return res.status(409).json({ error: 'عذراً، المقاعد على هذه الرحلة لم تعد كافية — اختر رحلة أخرى', flight: id });
+    }
+    if (prev) HOLDS.delete(b.holdId);
+    const holdId = crypto.randomBytes(16).toString('base64url');
+    const expires = Date.now() + HOLD_MINUTES * 60_000;
+    HOLDS.set(holdId, { flights: ids, seats, expires, ip: req.ip });
+    res.set('Cache-Control', 'no-store');
+    res.status(201).json({ holdId, expires_at: new Date(expires).toISOString(), seconds: HOLD_MINUTES * 60 });
+  });
+}));
+// تحرير القفل (إغلاق النافذة / مغادرة الصفحة) — POST حتى يعمل مع navigator.sendBeacon
+app.post('/api/hold-seat/:id/release', (req, res) => {
+  const h = HOLDS.get(req.params.id);
+  if (h && h.ip === req.ip) HOLDS.delete(req.params.id);
+  res.status(204).end();
+});
 
 // ---------- الإعدادات العامة للواجهة ----------
 app.get('/api/config', (req, res) => {
@@ -452,7 +599,8 @@ app.get('/api/flights', rateLimit(60, 60_000), ah(async (req, res) => {
   const children = Math.max(parseInt(toAsciiDigits(req.query.children)) || 0, 0);
   const infants = Math.max(parseInt(toAsciiDigits(req.query.infants)) || 0, 0);
   const need = Math.min(adults + children, PRICING.MAX_PAX);
-  const flights = (await findFlights(from, to, date, need, infants)).sort((a, b) => a.depart_time.localeCompare(b.depart_time));
+  const own = typeof req.query.hold === 'string' ? req.query.hold : undefined;
+  const flights = (await findFlights(from, to, date, need, infants, own)).sort((a, b) => a.depart_time.localeCompare(b.depart_time));
   // أرخص سعر متاح في الأيام القريبة (±3) لمساعدة الزبون على اختيار يوم أرخص
   const nearby = [];
   for (let i = -3; i <= 3; i++) {
@@ -472,7 +620,7 @@ app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزا
     // التحقق داخل القفل: المقاعد والأسعار تُحسب لحظة الحجز نفسها
     const { errors, data } = await validateBooking(req.body);
     if (errors.length) return res.status(400).json({ error: errors[0], details: errors });
-    const { tripType, out, ret, counts, passengers, contact_phone, email, method, phone } = data;
+    const { tripType, out, ret, counts, passengers, contact_phone, email, method, phone, holdId } = data;
     const legs = ret ? [out, ret] : [out];
     const booking = {
       id: Date.now(),
@@ -494,6 +642,7 @@ app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزا
       created_at: now(),
     };
     await store.insertBooking(booking);
+    if (holdId) HOLDS.delete(holdId); // المقعد صار محجوزاً نهائياً
     console.log(`[new] ${booking.ref} · ${out.origin}→${out.destination}${ret ? ' (ذهاب وعودة)' : ''} · ${booking.pax_count} pax · ${booking.total} LYD · ${method}`);
     res.status(201).json({
       success: true,
@@ -544,7 +693,7 @@ const BOOK_ST_AR = { pending: 'بانتظار التأكيد', confirmed: 'مؤ�
 
 app.get('/api/bookings/export.csv', requireAdmin, ah(async (req, res) => {
   const head = ['رقم الحجز', 'تاريخ الحجز', 'وقت الحجز', 'نوع الرحلة', 'شركة الطيران', 'رقم الرحلة', 'من', 'إلى',
-    'تاريخ الذهاب', 'وقت الذهاب', 'تاريخ العودة', 'بالغين', 'أطفال', 'رضّع', 'أسماء المسافرين', 'أرقام الجوازات',
+    'تاريخ الذهاب', 'وقت الذهاب', 'تاريخ العودة', 'بالغين', 'أطفال', 'رضّع', 'أسماء المسافرين', 'أرقام الجوازات', 'انتهاء الجوازات',
     'هاتف التواصل', 'البريد', 'طريقة الدفع', 'هاتف المحفظة', 'حالة الدفع', 'حالة الحجز', 'تاريخ الدفع',
     'سعر التذاكر', 'الضرائب', 'رسوم الخدمة', 'رسوم التحصيل', 'الإجمالي (د.ل)'];
   // نمنع Excel من تنفيذ خلية تبدأ بـ = + - @ (حماية من حقن الصيغ)
@@ -564,7 +713,7 @@ app.get('/api/bookings/export.csv', requireAdmin, ah(async (req, res) => {
     return [b.ref, d, t, b.trip_type === 'round' ? 'ذهاب وعودة' : 'ذهاب فقط', b.airline, b.outbound?.flight_no || '',
       b.origin, b.destination, b.depart_date, b.depart_time, b.return_date || '',
       b.adults ?? pax.length, b.children || 0, b.infants || 0,
-      pax.map(p => p.fullName).join(' | '), pax.map(p => p.passport).join(' | '),
+      pax.map(p => p.fullName).join(' | '), pax.map(p => p.passport).join(' | '), pax.map(p => p.passport_expiry || '').join(' | '),
       b.contact_phone, b.email, PAY_AR[b.payment_method] || b.payment_method, b.phone || '',
       PAY_ST_AR[b.status] || b.status, BOOK_ST_AR[b.booking_status] || b.booking_status, local(b.paid_at)[0],
       b.fare_total, b.taxes, b.service_fee, b.cod_fee || 0, b.total].map(cell).join(',');
