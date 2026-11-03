@@ -218,8 +218,13 @@
   .glass label.gfield > select, .glass label.gfield > input {
     position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; z-index: 2;
     padding: 30px 16px 12px; border-radius: inherit; background: transparent; cursor: pointer; }
-  .glass label.gfield > input[type=date] { padding-top: 32px; text-align: right; direction: ltr; }
-  .glass label.gfield > input[type=date]::-webkit-date-and-time-value { text-align: right; }
+  /* كروت التاريخ: العنوان والتاريخ في عمود متمركز بمسافات متساوية (سفاري iOS يتجاهل الحشو الرأسي داخل حقل التاريخ) */
+  .glass label.gfield:has(> input[type=date]) { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding-top: 12px; padding-bottom: 12px; }
+  .glass label.gfield > input[type=date] {
+    position: static; inset: auto; display: block; width: 100%; height: 28px; min-height: 28px; margin: 0; padding: 0;
+    line-height: 28px; text-align: right; direction: ltr; -webkit-appearance: none; appearance: none; background: transparent; }
+  .glass label.gfield > input[type=date]::-webkit-date-and-time-value { text-align: right; margin: 0; min-height: 28px; line-height: 28px; }
+  .glass label.gfield > input[type=date]::-webkit-datetime-edit { padding: 0; line-height: 28px; }
   .glass .trip-tab { min-height: 44px; }
   #sortTabs button { min-height: 42px; }
   #closeFilters { display: grid; place-items: center; width: 44px; height: 44px; margin: -10px -10px -10px 0; }
