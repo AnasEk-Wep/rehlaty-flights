@@ -365,7 +365,7 @@
         <td class="whitespace-nowrap px-4 py-3 font-bold ${cancelled ? 'line-through' : 'text-brand-700'}" dir="ltr">${esc(b.ref)}</td>
         <td class="px-4 py-3 text-ink-muted">${d.toLocaleDateString('ar-LY')}<br><span class="text-xs">${d.toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' })}</span></td>
         <td class="px-4 py-3"><span class="font-semibold">${esc(b.airline)}</span><br><span class="whitespace-nowrap text-xs text-ink-muted" dir="ltr">${esc(b.origin)} ${esc(b.depart_time)} → ${esc(b.destination)} ${esc(b.arrive_time)}</span></td>
-        <td class="px-4 py-3">${b.contact_phone ? `<div class="mb-1 text-xs font-semibold text-brand-700" dir="ltr">📞 ${esc(b.contact_phone)}</div>` : ''}${b.passengers.map(p => `<div>${esc(p.fullName)} <span class="text-xs text-ink-subtle" dir="ltr" title="${esc(p.passport)}">${esc(maskPassport(p.passport))}</span>${p.passport_expiry ? ` <span class="text-[11px] text-ink-subtle" title="انتهاء الجواز">· ⏳ ${esc(p.passport_expiry)}</span>` : ''}</div>`).join('')}</td>
+        <td class="px-4 py-3">${b.contact_phone ? `<div class="mb-1 text-xs font-semibold text-brand-700" dir="ltr">📞 ${esc(b.contact_phone)}</div>` : ''}${b.passengers.map(p => `<div>${esc(p.fullName)} <span class="text-xs text-ink-subtle" dir="ltr" title="${esc(p.passport)}">${esc(maskPassport(p.passport))}</span>${p.birth_date ? ` <span class="text-[11px] text-ink-subtle" title="تاريخ الميلاد">· 🎂 ${esc(p.birth_date)}</span>` : ''}${p.passport_expiry ? ` <span class="text-[11px] text-ink-subtle" title="انتهاء الجواز">· ⏳ ${esc(p.passport_expiry)}</span>` : ''}</div>`).join('')}</td>
         <td class="px-4 py-3">${PAY[b.payment_method] || esc(b.payment_method)}${b.phone ? `<br><span class="text-xs text-ink-muted" dir="ltr">محفظة: ${esc(b.phone)}</span>` : ''}</td>
         <td class="space-y-1 px-4 py-3">${badge(BOOKING_STATUS[b.booking_status] || [b.booking_status, 'bg-canvas'])}<br>${badge(cancelled && b.status === 'paid' ? ['مدفوع · يلزم استرداد', 'bg-red-50 text-red-700'] : (PAY_STATUS[b.status] || [b.status, 'bg-canvas']))}</td>
         <td class="px-4 py-3 font-bold">${fmt(b.total)} <span class="text-xs font-medium text-ink-muted">د.ل</span></td>
@@ -460,8 +460,8 @@
         <!-- passengers -->
         <div style="font-size:14px;font-weight:700;margin-bottom:8px">المسافرون (${b.pax_count})</div>
         <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px">
-          <thead><tr style="background:#F8FAFC;color:#475569"><th style="padding:8px;text-align:right">#</th><th style="padding:8px;text-align:right">الاسم الكامل</th><th style="padding:8px;text-align:right">رقم الجواز</th><th style="padding:8px;text-align:right">الدرجة</th></tr></thead>
-          <tbody>${b.passengers.map((p, i) => `<tr style="border-bottom:1px solid #E2E8F0"><td style="padding:8px">${i + 1}</td><td style="padding:8px;font-weight:600">${esc(p.fullName)}</td><td style="padding:8px" dir="ltr">${esc(p.passport)}</td><td style="padding:8px">سياحية</td></tr>`).join('')}</tbody>
+          <thead><tr style="background:#F8FAFC;color:#475569"><th style="padding:8px;text-align:right">#</th><th style="padding:8px;text-align:right">الاسم الكامل</th><th style="padding:8px;text-align:right">رقم الجواز</th><th style="padding:8px;text-align:right">تاريخ الميلاد</th><th style="padding:8px;text-align:right">الدرجة</th></tr></thead>
+          <tbody>${b.passengers.map((p, i) => `<tr style="border-bottom:1px solid #E2E8F0"><td style="padding:8px">${i + 1}</td><td style="padding:8px;font-weight:600">${esc(p.fullName)}</td><td style="padding:8px" dir="ltr">${esc(p.passport)}</td><td style="padding:8px" dir="ltr">${esc(p.birth_date || '—')}</td><td style="padding:8px">سياحية</td></tr>`).join('')}</tbody>
         </table>
 
         <!-- cost + payment -->
