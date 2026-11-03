@@ -106,6 +106,12 @@ function jsonStore() {
       if (i === -1) list.push(s); else list[i] = s;
       writeJson(SCHEDULES_FILE, list);
     },
+    // حفظ عدة رحلات دفعة واحدة (استيراد Excel) — كتابة واحدة للملف
+    async upsertSchedules(items) {
+      const list = await this.listSchedules();
+      for (const s of items) { const i = list.findIndex(x => x.no === s.no); if (i === -1) list.push(s); else list[i] = s; }
+      writeJson(SCHEDULES_FILE, list);
+    },
     async deleteSchedule(no) {
       const list = await this.listSchedules();
       const next = list.filter(x => x.no !== no);
@@ -174,6 +180,11 @@ function mongoStore(uri) {
     async saveSettings(s) { await settings.replaceOne({ _id: 'site' }, strip(s), { upsert: true }); },
     async listSchedules() { return schedules.find({}, NO_ID).sort({ no: 1 }).toArray(); },
     async upsertSchedule(s) { await schedules.replaceOne({ no: s.no }, strip(s), { upsert: true }); },
+    // حفظ عدة رحلات دفعة واحدة (استيراد Excel) — طلب bulkWrite واحد إلى Atlas
+    async upsertSchedules(items) {
+      if (!items.length) return;
+      await schedules.bulkWrite(items.map(s => ({ replaceOne: { filter: { no: s.no }, replacement: strip(s), upsert: true } })), { ordered: true });
+    },
     async deleteSchedule(no) { return (await schedules.deleteOne({ no })).deletedCount === 1; },
     async seatsSold(ids) {
       if (!ids.length) return {};

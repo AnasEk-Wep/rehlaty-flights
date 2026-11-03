@@ -20,6 +20,8 @@
 //    PUT/DELETE      /api/admin/schedules/:no       ← تعديل / حذف رحلة
 //    GET             /api/admin/schedules/:no/dates ← المقاعد المباعة والمتبقية لكل يوم
 //    PUT             /api/admin/schedules/:no/dates/:date ← إقفال يوم / مقاعد بيعت في المكتب
+//    GET             /api/admin/flights/template.xlsx ← نموذج Excel فارغ لاستيراد الرحلات
+//    POST            /api/admin/flights/import      ← استيراد جدول رحلات من Excel/CSV (?dry=1 معاينة بدون حفظ · &mode=merge|replace)
 //    GET   /api/bookings/export.csv  ← تصدير كل الحجوزات لملف Excel (CSV)
 //    GET   /api/health               ← فحص الحالة (لـ Render)
 // =============================================================
@@ -27,6 +29,7 @@ const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
 const { store, DEFAULT_SETTINGS } = require('./store');
+const flightImport = require('./import-flights');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -117,17 +120,17 @@ function normalizeWhatsapp(raw) {
 // المطارات
 // -------------------------------------------------------------
 const AIRPORTS = {
-  MJI: { city: 'طرابلس',     name: 'مطار معيتيقة الدولي' },
-  BEN: { city: 'بنغازي',     name: 'مطار بنينا الدولي' },
-  MRA: { city: 'مصراتة',     name: 'مطار مصراتة الدولي' },
-  SEB: { city: 'سبها',       name: 'مطار سبها' },
-  IST: { city: 'إسطنبول',    name: 'مطار إسطنبول' },
-  TUN: { city: 'تونس',       name: 'مطار تونس قرطاج' },
-  CAI: { city: 'القاهرة',    name: 'مطار القاهرة الدولي' },
-  AMM: { city: 'عمّان',      name: 'مطار الملكة علياء الدولي' },
-  DXB: { city: 'دبي',        name: 'مطار دبي الدولي' },
-  JED: { city: 'جدة',        name: 'مطار الملك عبدالعزيز الدولي' },
-  MLA: { city: 'مالطا',      name: 'مطار مالطا الدولي' },
+  MJI: { city: 'طرابلس',     name: 'مطار معيتيقة الدولي', tz: 'Africa/Tripoli' },
+  BEN: { city: 'بنغازي',     name: 'مطار بنينا الدولي', tz: 'Africa/Tripoli' },
+  MRA: { city: 'مصراتة',     name: 'مطار مصراتة الدولي', tz: 'Africa/Tripoli' },
+  SEB: { city: 'سبها',       name: 'مطار سبها', tz: 'Africa/Tripoli' },
+  IST: { city: 'إسطنبول',    name: 'مطار إسطنبول', tz: 'Europe/Istanbul' },
+  TUN: { city: 'تونس',       name: 'مطار تونس قرطاج', tz: 'Africa/Tunis' },
+  CAI: { city: 'القاهرة',    name: 'مطار القاهرة الدولي', tz: 'Africa/Cairo' },
+  AMM: { city: 'عمّان',      name: 'مطار الملكة علياء الدولي', tz: 'Asia/Amman' },
+  DXB: { city: 'دبي',        name: 'مطار دبي الدولي', tz: 'Asia/Dubai' },
+  JED: { city: 'جدة',        name: 'مطار الملك عبدالعزيز الدولي', tz: 'Asia/Riyadh' },
+  MLA: { city: 'مالطا',      name: 'مطار مالطا الدولي', tz: 'Europe/Malta' },
 };
 
 // -------------------------------------------------------------
@@ -197,7 +200,13 @@ function seatPrices(s, sold, n) {
 
 const flightId = (s, date) => `${s.no}-${date}`;
 const dow = date => new Date(date + 'T00:00:00Z').getUTCDay();
-const operates = (s, date) => s.days.includes(dow(date)) && !(s.closed_dates || []).includes(date);
+// رحلة بتواريخ محددة (مستوردة من Excel): s.dated = { 'YYYY-MM-DD': { dep, arr, dur, tiers } }
+// بدلاً من أيام أسبوعية ثابتة. كل تاريخ له وقته وسعره ومقاعده.
+const isDated = s => !!s.dated && Object.keys(s.dated).length > 0;
+const runsOn = (s, date) => isDated(s) ? !!s.dated[date] : s.days.includes(dow(date)); // بغض النظر عن الإقفال
+const operates = (s, date) => runsOn(s, date) && !(s.closed_dates || []).includes(date);
+const atDate = (s, date) => (isDated(s) && s.dated[date]) ? { ...s, ...s.dated[date] } : s; // بيانات ذلك اليوم
+const hasFuture = s => !isDated(s) || Object.keys(s.dated).some(d => d >= today());
 
 // رحلة يوم معيّن. need = عدد المقاعد المطلوبة (بالغين + أطفال) لحساب السعر بدقة
 function flightFor(s, date, soldOnline = 0, need = 1, infants = 0) {
@@ -249,7 +258,7 @@ async function occupied(ids, exceptHold) {
 async function findFlights(from, to, date, need = 1, infants = 0, exceptHold) {
   const list = SCHEDULES.filter(s => sellable(s) && s.from === from && s.to === to && operates(s, date));
   const occ = await occupied(list.map(s => flightId(s, date)), exceptHold);
-  return list.map(s => flightFor(s, date, occ[flightId(s, date)] || 0, need, infants));
+  return list.map(s => flightFor(atDate(s, date), date, occ[flightId(s, date)] || 0, need, infants));
 }
 async function flightById(id, need = 1, exceptHold) {
   const m = /^([A-Z0-9]{2}\d{1,4})-(\d{4}-\d{2}-\d{2})$/.exec(String(id || ''));
@@ -257,7 +266,7 @@ async function flightById(id, need = 1, exceptHold) {
   const s = SCHEDULES.find(x => x.no === m[1]);
   if (!s || !sellable(s) || !operates(s, m[2])) return null;
   const occ = await occupied([id], exceptHold);
-  return flightFor(s, m[2], occ[id] || 0, need);
+  return flightFor(atDate(s, m[2]), m[2], occ[id] || 0, need);
 }
 
 // تكلفة الحجز: كل مقعد بسعر فئته، الطفل 75% من سعر مقعده، الرضيع 10% من أول مقعد
@@ -303,7 +312,7 @@ function validateSchedule(body, existing) {
   const via = stops ? clip(b.via, 40) : '';
   const bag = clip(b.bag, 30) || '23 كغ';
   const days = [...new Set((Array.isArray(b.days) ? b.days : []).map(Number).filter(d => d >= 0 && d <= 6))].sort();
-  if (!days.length) errors.push('اختر يوم تشغيل واحد على الأقل');
+  if (!days.length && !isDated(existing || {})) errors.push('اختر يوم تشغيل واحد على الأقل');
   const currency = ['LYD', 'USD', 'EUR'].includes(b.currency) ? b.currency : 'LYD';
   const tiers = (Array.isArray(b.tiers) ? b.tiers : []).map(t => ({ seats: parseInt(toAsciiDigits(t?.seats)) || 0, price: Number(toAsciiDigits(t?.price)) || 0 }))
     .filter(t => t.seats > 0 || t.price > 0);
@@ -318,9 +327,23 @@ function validateSchedule(body, existing) {
       no, airline, code, color, from, to, dep, arr, dur, stops, via, bag, days, currency, tiers,
       active: b.active !== false,
       closed_dates: existing?.closed_dates || [], offline_sold: existing?.offline_sold || {},
+      ...(isDated(existing || {}) ? { days: [], dated: applyToDates(existing, { dep, arr, dur, tiers }) } : {}),
       updated_at: now(),
     },
   };
+}
+
+// تعديل رحلة بتواريخ محددة من النافذة: ما تغيّر (الوقت/المدة/الفئات) يُطبَّق على كل تواريخها القادمة،
+// وما لم يتغيّر يبقى كما هو في كل تاريخ (يحافظ على أسعار الأيام المختلفة من الاستيراد)
+function applyToDates(existing, next) {
+  const out = {};
+  for (const [d, v] of Object.entries(existing.dated)) {
+    if (d < today()) continue;
+    const o = { ...v };
+    for (const k of ['dep', 'arr', 'dur', 'tiers']) if (JSON.stringify(next[k]) !== JSON.stringify(existing[k])) o[k] = next[k];
+    out[d] = o;
+  }
+  return out;
 }
 
 // -------------------------------------------------------------
@@ -574,7 +597,7 @@ app.post('/api/hold-seat/:id/release', (req, res) => {
 
 // ---------- الإعدادات العامة للواجهة ----------
 app.get('/api/config', (req, res) => {
-  const routes = [...new Map(SCHEDULES.filter(sellable).map(s => [`${s.from}-${s.to}`, { origin: s.from, destination: s.to }])).values()];
+  const routes = [...new Map(SCHEDULES.filter(s => sellable(s) && hasFuture(s)).map(s => [`${s.from}-${s.to}`, { origin: s.from, destination: s.to }])).values()];
   res.json({ airports: AIRPORTS, routes, pricing: PRICING, whatsapp: getSettings().office_whatsapp, site_name: getSettings().site_name, today: today(), maxDate: addDays(today(), BOOKING_WINDOW_DAYS) });
 });
 
@@ -827,16 +850,17 @@ app.get('/api/admin/schedules/:no/dates', requireAdmin, ah(async (req, res) => {
   if (!s) return res.status(404).json({ error: 'الرحلة غير موجودة' });
   const days = Math.min(Math.max(parseInt(req.query.days) || 60, 7), BOOKING_WINDOW_DAYS);
   const dates = [];
-  for (let i = 0; i <= days; i++) { const d = addDays(today(), i); if (s.days.includes(dow(d))) dates.push(d); }
+  if (isDated(s)) dates.push(...Object.keys(s.dated).filter(d => d >= today()).sort().slice(0, 366));
+  else for (let i = 0; i <= days; i++) { const d = addDays(today(), i); if (s.days.includes(dow(d))) dates.push(d); }
   const sold = await store.seatsSold(dates.map(d => flightId(s, d)));
-  const cap = capacityOf(s);
   res.set('Cache-Control', 'no-store');
   res.json({
-    capacity: cap, currency: s.currency,
+    capacity: capacityOf(s), currency: s.currency, dated: isDated(s),
     dates: dates.map(d => {
+      const sd = atDate(s, d), cap = capacityOf(sd);
       const online = sold[flightId(s, d)] || 0, offline = Number((s.offline_sold || {})[d]) || 0;
-      const f = flightFor(s, d, online, 1);
-      return { date: d, online, offline, left: Math.max(0, cap - online - offline), price: f.price, closed: (s.closed_dates || []).includes(d) };
+      const f = flightFor(sd, d, online, 1);
+      return { date: d, dep: sd.dep, capacity: cap, online, offline, left: Math.max(0, cap - online - offline), price: f.price, closed: (s.closed_dates || []).includes(d) };
     }),
   });
 }));
@@ -846,7 +870,7 @@ app.put('/api/admin/schedules/:no/dates/:date', requireAdmin, ah(async (req, res
   const cur = SCHEDULES.find(x => x.no === req.params.no);
   const date = req.params.date;
   if (!cur) return res.status(404).json({ error: 'الرحلة غير موجودة' });
-  if (!isDate(date) || !cur.days.includes(dow(date))) return res.status(400).json({ error: 'الرحلة لا تعمل في هذا التاريخ' });
+  if (!isDate(date) || !runsOn(cur, date)) return res.status(400).json({ error: 'الرحلة لا تعمل في هذا التاريخ' });
   const s = { ...cur, closed_dates: [...(cur.closed_dates || [])], offline_sold: { ...(cur.offline_sold || {}) } };
   if (req.body?.closed !== undefined) {
     s.closed_dates = s.closed_dates.filter(d => d !== date && d >= today());
@@ -854,7 +878,7 @@ app.put('/api/admin/schedules/:no/dates/:date', requireAdmin, ah(async (req, res
   }
   if (req.body?.offline !== undefined) {
     const n = parseInt(toAsciiDigits(req.body.offline)) || 0;
-    if (n < 0 || n > capacityOf(s)) return res.status(400).json({ error: 'عدد المقاعد المباعة خارج الموقع غير صالح' });
+    if (n < 0 || n > capacityOf(atDate(s, date))) return res.status(400).json({ error: 'عدد المقاعد المباعة خارج الموقع غير صالح' });
     if (n) s.offline_sold[date] = n; else delete s.offline_sold[date];
   }
   // تنظيف الأيام الماضية
@@ -864,6 +888,108 @@ app.put('/api/admin/schedules/:no/dates/:date', requireAdmin, ah(async (req, res
   SCHEDULES[SCHEDULES.indexOf(cur)] = s;
   res.json({ ok: true });
 }));
+
+// ---------- استيراد جدول الرحلات من Excel / CSV ----------
+// نموذج Excel فارغ بالأعمدة المطلوبة
+app.get('/api/admin/flights/template.xlsx', requireAdmin, ah(async (req, res) => {
+  const buf = await flightImport.buildTemplate(AIRPORTS);
+  res.set({
+    'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'Content-Disposition': `attachment; filename="flights-template.xlsx"; filename*=UTF-8''${encodeURIComponent('نموذج-جدول-الرحلات.xlsx')}`,
+    'Cache-Control': 'no-store',
+  });
+  res.send(buf);
+}));
+
+const IMPORT_COLORS = ['#1D5BD8', '#E11D48', '#0E7490', '#7C3AED', '#059669', '#D97706', '#DB2777', '#334155'];
+const colorForCode = code => {
+  const known = SCHEDULES.find(x => x.code === code);
+  if (known) return known.color;
+  let h = 0; for (const ch of code) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return IMPORT_COLORS[h % IMPORT_COLORS.length];
+};
+
+// الملف يُرسل كما هو في جسم الطلب (application/octet-stream) — بعد التحقق من جلسة الأدمن
+// ?filename=…  &mode=merge (افتراضي: يضيف/يحدّث التواريخ) | replace (يستبدل الرحلات بنفس الرقم)  &dry=1 (معاينة بدون حفظ)
+app.post('/api/admin/flights/import', requireAdmin,
+  express.raw({ type: () => true, limit: '5mb' }),
+  ah(async (req, res) => {
+    const mode = req.query.mode === 'replace' ? 'replace' : 'merge';
+    const dry = req.query.dry === '1' || req.query.dry === 'true';
+    const filename = clip(req.query.filename, 120);
+    if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'لم يصل أي ملف' });
+
+    let rows;
+    try { rows = await flightImport.parseUpload(req.body, filename); }
+    catch (e) { return res.status(400).json({ error: e.message }); }
+
+    const maxDate = addDays(today(), 365);
+    const { errors, groups } = flightImport.validateRows(rows, { AIRPORTS, toAscii: toAsciiDigits, today: today(), maxDate, clip });
+
+    // تحويل كل مجموعة (رقم رحلة) إلى رحلة في الجدول، ومقارنتها بالموجود
+    const items = [], created = [], updated = [], warnings = [];
+    for (const g of groups.values()) {
+      const first = g.rows[0];
+      const cur = SCHEDULES.find(x => x.no === g.no);
+      const code = g.no.slice(0, 2);
+      const airline = g.airline || cur?.airline || SCHEDULES.find(x => x.code === code)?.airline || '';
+      if (!airline) { errors.push({ row: first, msg: `اكتب اسم شركة الطيران للرحلة ${g.no} في عمود «شركة الطيران» (الرمز ${code} غير موجود في الجدول)` }); continue; }
+      if (cur && mode === 'merge') {
+        if (!isDated(cur)) { errors.push({ row: first, msg: `الرحلة ${g.no} موجودة في الجدول كرحلة أسبوعية — اختر «استبدال الرحلات الموجودة» أو استخدم رقماً آخر` }); continue; }
+        if (cur.from !== g.from || cur.to !== g.to) { errors.push({ row: first, msg: `الرحلة ${g.no} موجودة بمسار ${cur.from}→${cur.to} وليس ${g.from}→${g.to}` }); continue; }
+      }
+      const fresh = Object.fromEntries(Object.entries(g.dates).map(([d, v]) => [d, { dep: v.dep, arr: v.arr, dur: v.dur, tiers: v.tiers }]));
+      const keepOld = cur && mode === 'merge' ? Object.fromEntries(Object.entries(cur.dated).filter(([d]) => d >= today())) : {};
+      const dated = { ...keepOld, ...fresh };
+      const firstDate = Object.keys(dated).sort()[0];
+      const keepDay = d => !!dated[d];
+      items.push({
+        no: g.no, airline, code, color: cur?.color || colorForCode(code),
+        from: g.from, to: g.to, ...dated[firstDate],
+        stops: cur?.stops || 0, via: cur?.via || '', bag: g.bag || cur?.bag || '23 كغ',
+        days: [], dated, currency: g.currency, active: cur ? cur.active : true,
+        // الأيام المقفولة والمقاعد المباعة في المكتب تبقى للتواريخ التي ما زالت في الجدول
+        closed_dates: (cur?.closed_dates || []).filter(keepDay),
+        offline_sold: Object.fromEntries(Object.entries(cur?.offline_sold || {}).filter(([d]) => keepDay(d))),
+        source: 'import', created_at: cur?.created_at || now(), updated_at: now(),
+      });
+      (cur ? updated : created).push(g.no);
+      if (g.currency !== 'LYD' && !(Number(getSettings()[FX_KEY[g.currency]]) > 0))
+        warnings.push(`الرحلة ${g.no} بعملة ${g.currency} ولن تظهر للزبائن حتى تضبط سعر الصرف في الإعدادات`);
+    }
+
+    // تنبيه: تاريخ مقاعده الجديدة أقل من المحجوز فعلاً
+    if (items.length) {
+      const ids = items.flatMap(s => Object.keys(s.dated).map(d => flightId(s, d)));
+      const sold = await store.seatsSold(ids);
+      for (const s of items) for (const [d, v] of Object.entries(s.dated)) {
+        const n = (sold[flightId(s, d)] || 0) + (Number(s.offline_sold[d]) || 0), cap = capacityOf(v);
+        if (n > cap) warnings.push(`${s.no} يوم ${d}: المقاعد (${cap}) أقل من المحجوز فعلاً (${n}) — لن تُباع مقاعد إضافية`);
+      }
+    }
+
+    errors.sort((a, b) => a.row - b.row);
+    const totalDates = [...groups.values()].reduce((n, g) => n + Object.keys(g.dates).length, 0);
+    const summary = { rows: rows.length, flights: items.length, dates: totalDates, created, updated, mode };
+    const preview = [...groups.values()].flatMap(g => Object.entries(g.dates).map(([d, v]) => ({
+      row: v._row, no: g.no, from: g.from, to: g.to, date: d, dep: v.dep, arr: v.arr, dur: v.dur,
+      price: v.tiers[0].price, seats: v.tiers[0].seats, currency: g.currency,
+    }))).sort((a, b) => a.row - b.row).slice(0, 200);
+
+    // أي خطأ = لا يُحفظ شيء (الملف كله أو لا شيء)
+    if (errors.length) return res.status(422).json({ ok: false, error: `في الملف ${errors.length} خطأ — صحّحها ثم أعد الرفع`, errors: errors.slice(0, 300), warnings, summary, preview });
+    if (dry) return res.json({ ok: true, dry: true, summary, warnings, preview });
+
+    await withBookingLock(async () => {
+      await store.upsertSchedules(items);
+      for (const it of items) {
+        const i = SCHEDULES.findIndex(x => x.no === it.no);
+        if (i === -1) SCHEDULES.push(it); else SCHEDULES[i] = it;
+      }
+    });
+    console.log(`[import] ${filename || 'file'} · ${mode} · ${created.length} جديدة · ${updated.length} محدّثة · ${totalDates} تاريخ`);
+    res.json({ ok: true, dry: false, summary, warnings });
+  }));
 
 app.get('/api/health', ah(async (req, res) => {
   await store.refExists('__health__'); // يتأكد أن قاعدة البيانات ترد
