@@ -20,13 +20,13 @@
 <meta property="og:title" content="احجز تذكرة طيرانك في دقائق">
 <meta property="og:description" content="قارن بين شركات الطيران واحجز تذكرتك بأفضل سعر، مع دعم على واتساب.">
 <meta property="og:locale" content="ar_LY">
-<meta name="theme-color" content="#070A13">
+<meta name="theme-color" content="#030712">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com/3.4.16"></script>
 <script>
   // ===== Design Tokens (نظام التصميم) =====
@@ -34,14 +34,15 @@
   tailwind.config = {
     theme: {
       extend: {
-        fontFamily: { sans: ['"IBM Plex Sans Arabic"', 'system-ui', 'sans-serif'] },
+        fontFamily: { sans: ['"IBM Plex Sans Arabic"', 'system-ui', 'sans-serif'], display: ['Alexandria', '"IBM Plex Sans Arabic"', 'system-ui', 'sans-serif'] },
         colors: {
           // الألوان مربوطة بمتغيرات CSS (انظر :root و html.dark) ليتبدل الوضع الفاتح/الداكن دفعة واحدة
           navy:   { 900: '#0F172A', 800: '#1E293B', 700: '#334155' },
           brand:  { 50: v('brand-50'), 100: v('brand-100'), 500: '#3B82F6', 600: '#2563EB', 700: v('brand-700') },
           accent: { 50: v('accent-50'), 500: '#F59E0B', 600: v('accent-600') },
           sky:    { 400: '#38BDF8' },
-          gold:   { 200: '#F7E7B4', 300: '#F0D58C', 400: '#E6C16A', 500: '#D4AF37', 600: '#B38B22' },
+          // «gold» = لون العلامة الرئيسي (أزرق نيون طيران) — الاسم بقي كما هو حتى لا تتغير قوالب الجافاسكربت
+          gold:   { 200: '#E0F2FE', 300: '#7DD3FC', 400: '#38BDF8', 500: '#2563EB', 600: '#1D4ED8' },
           night:  { 950: '#04060C', 900: '#070A13', 850: '#0A0F1C', 800: '#0E1424' },
           ok:     { 50: v('ok-50'), 600: '#10B981', 700: v('ok-700') },
           red:    { 50: v('red-50'), 500: '#EF4444', 600: v('red-600'), 700: v('red-700') },
@@ -60,8 +61,8 @@
         boxShadow: {
           card: '0 1px 2px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.05)',
           elevated: '0 12px 36px rgba(15,23,42,.10)',
-          cta: '0 10px 28px -10px rgba(212,175,55,.65)',
-          gold: '0 0 0 1px rgba(212,175,55,.35), 0 18px 50px -18px rgba(212,175,55,.35)',
+          cta: '0 10px 28px -10px rgba(37,99,235,.65)',
+          gold: '0 0 0 1px rgba(37,99,235,.35), 0 18px 50px -18px rgba(37,99,235,.35)',
           glass: '0 30px 80px -20px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.08)',
         },
       },
@@ -77,8 +78,8 @@
     .field { @apply w-full rounded-2xl border border-line bg-surface px-4 py-3 text-base text-ink outline-none placeholder:text-ink-subtle sm:text-[15px] transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100; }
     .field-label { @apply mb-2 block text-[13px] font-medium text-ink-muted; }
     .field-err { @apply mt-1 block text-xs text-red-600; }
-    .btn-primary { @apply rounded-xl bg-gradient-to-l from-gold-300 via-gold-400 to-gold-500 px-6 py-3 text-sm font-bold text-night-900 transition duration-200 hover:brightness-110 active:scale-[.98] disabled:cursor-wait disabled:opacity-60; }
-    .btn-accent { @apply rounded-xl bg-gradient-to-l from-gold-300 via-gold-400 to-gold-500 px-6 py-3 text-sm font-bold text-night-900 shadow-cta transition duration-200 hover:brightness-110 active:scale-[.98] disabled:cursor-wait disabled:opacity-60; }
+    .btn-primary { @apply rounded-xl bg-gradient-to-l from-[#0284C7] to-[#2563EB] px-6 py-3 text-sm font-bold text-white transition duration-200 hover:brightness-110 active:scale-[.98] disabled:cursor-wait disabled:opacity-60; }
+    .btn-accent { @apply rounded-xl bg-gradient-to-l from-[#0284C7] to-[#2563EB] px-6 py-3 text-sm font-bold text-white shadow-cta transition duration-200 hover:brightness-110 active:scale-[.98] disabled:cursor-wait disabled:opacity-60; }
     .btn-ghost { @apply rounded-xl px-5 py-3 text-sm font-semibold text-ink-muted hover:bg-canvas; }
     .btn-wa { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-[#25D366] to-[#128C7E] px-6 py-3 text-sm font-bold text-white shadow-[0_12px_32px_-12px_rgba(37,211,102,.7)] transition duration-200 hover:brightness-110 active:scale-[.98]; }
     .chip { @apply rounded-xl border border-line px-2 py-2 text-xs font-medium text-ink-muted hover:border-brand-500; }
@@ -102,21 +103,21 @@
   }
   /* ===== الوضع الداكن (كحلي فاخر) ===== */
   html.dark {
-    --canvas: 7 10 19;       /* #070A13 ليل عميق */
-    --surface: 14 20 36;     /* #0E1424 */
+    --canvas: 6 11 24;       /* #060B18 كحلي ليلي عميق */
+    --surface: 15 23 42;     /* #0F172A */
     --ink: 238 242 248;
     --ink-muted: 156 168 189;
     --ink-subtle: 100 114 140;
-    --line: 34 45 68;        /* #222D44 */
+    --line: 36 50 76;        /* #24324C */
     --brand-50: 20 33 63; --brand-100: 34 58 108; --brand-700: 147 197 253;
-    --accent-50: 52 38 10; --accent-600: 240 203 117;
+    --accent-50: 56 30 16; --accent-600: 253 186 116;
     --ok-50: 7 50 40; --ok-700: 110 231 183;
     --red-50: 62 15 20; --red-600: 248 113 113; --red-700: 252 165 165;
     color-scheme: dark;
   }
   html.dark body {
     background:
-      radial-gradient(1200px 600px at 85% 110%, rgba(212,175,55,.06), transparent 60%),
+      radial-gradient(1200px 600px at 85% 110%, rgba(37,99,235,.06), transparent 60%),
       radial-gradient(900px 500px at 0% 60%, rgba(59,130,246,.06), transparent 60%),
       rgb(var(--canvas));
     background-attachment: fixed;
@@ -125,17 +126,21 @@
   html.dark .shadow-card { box-shadow: 0 0 0 1px rgb(var(--line) / .9), 0 14px 34px -18px rgba(0,0,0,.75); }
   html.dark .shadow-elevated { box-shadow: 0 0 0 1px rgb(var(--line)), 0 40px 90px -30px rgba(0,0,0,.85); }
   html.dark select option { background: #0E1424; color: #EEF2F8; }
-  ::selection { background: rgba(212,175,55,.35); }
-  .text-gold-grad { background: linear-gradient(90deg, #F7E7B4, #E6C16A 45%, #B38B22); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  ::selection { background: rgba(37,99,235,.35); }
+  .text-gold-grad { background: linear-gradient(90deg, #E0F2FE, #7DD3FC 35%, #3B82F6 75%, #2563EB); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  /* ===== الخطوط: Alexandria للعناوين والأرقام، IBM Plex Sans Arabic للنصوص ===== */
+  h1, h2, h3, .text-display, .text-h1, .text-h2, .text-h3, .font-num, [data-site-name], .splash-word, #routeTitle, #mRef {
+    font-family: Alexandria, "IBM Plex Sans Arabic", system-ui, sans-serif; }
+  h1 { font-weight: 800; letter-spacing: -.01em; }
   .font-num { font-variant-numeric: tabular-nums; letter-spacing: .01em; }
 
   /* ===== القسم العلوي ===== */
   .hero {
     background:
-      radial-gradient(700px 420px at 12% 8%, rgba(212,175,55,.20), transparent 62%),
-      radial-gradient(800px 520px at 92% 18%, rgba(56,132,246,.22), transparent 60%),
-      radial-gradient(600px 400px at 50% 120%, rgba(212,175,55,.10), transparent 60%),
-      linear-gradient(180deg, #04060C 0%, #070B16 60%, rgb(var(--canvas) / 0) 100%);
+      radial-gradient(760px 460px at 10% 0%, rgba(2,132,199,.22), transparent 62%),
+      radial-gradient(820px 540px at 92% 14%, rgba(37,99,235,.28), transparent 60%),
+      radial-gradient(640px 420px at 50% 120%, rgba(30,64,175,.20), transparent 60%),
+      linear-gradient(180deg, #030712 0%, #07102A 58%, rgb(var(--canvas) / 0) 100%);
   }
   .hero-grid {
     background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
@@ -149,34 +154,36 @@
   @keyframes floaty { 50% { transform: translateY(-8px) rotate(-2deg); } }
   @media (prefers-reduced-motion: reduce) { .flight-path, .plane-float { animation: none; } }
 
-  /* ===== صندوق البحث الزجاجي (داكن دائماً مهما كان الوضع) ===== */
+  /* ===== صندوق البحث: بطاقة داكنة صلبة (داكن دائماً مهما كان الوضع) ===== */
   .glass {
-    --surface: 16 23 41; --canvas: 26 34 56; --ink: 240 244 250; --ink-muted: 170 182 202; --ink-subtle: 128 142 168;
-    --line: 58 70 96; --brand-50: 52 44 20; --brand-100: 92 74 26; --brand-700: 240 213 140; --red-600: 252 129 129;
-    background: linear-gradient(135deg, rgba(255,255,255,.09), rgba(255,255,255,.03));
-    border: 1px solid rgba(255,255,255,.12);
-    -webkit-backdrop-filter: blur(22px) saturate(140%); backdrop-filter: blur(22px) saturate(140%);
+    --surface: 17 24 39; --canvas: 31 41 55; --ink: 249 250 251; --ink-muted: 209 213 219; --ink-subtle: 156 163 175;
+    --line: 55 65 81; --brand-50: 23 37 84; --brand-100: 30 64 175; --brand-700: 147 197 253; --red-600: 252 129 129;
+    background: #111827;
+    border: 1px solid rgba(255,255,255,.1);
+    box-shadow: 0 30px 70px -24px rgba(0,0,0,.75), 0 0 0 1px rgba(37,99,235,.06), inset 0 1px 0 rgba(255,255,255,.05);
     color-scheme: dark;
   }
-  .glass .gfield { border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); transition: border-color .2s, background .2s, box-shadow .2s; }
-  .glass .gfield:hover { border-color: rgba(255,255,255,.2); }
-  .glass .gfield:focus-within { border-color: rgba(230,193,106,.75); background: rgba(255,255,255,.07); box-shadow: 0 0 0 4px rgba(212,175,55,.14); }
-  .glass .trip-tab { background: transparent !important; color: rgb(var(--ink-muted)) !important; }
-  .glass .trip-tab[aria-checked="true"] { background: linear-gradient(90deg, #F0D58C, #D4AF37) !important; color: #070A13 !important; box-shadow: 0 8px 22px -10px rgba(212,175,55,.8); }
-  .glass select option { background: #0E1424; color: #EEF2F8; }
-  .glass #paxPop { background: #0E1424; border-color: rgba(255,255,255,.12); }
-  .glass input[type=date]::-webkit-calendar-picker-indicator { filter: invert(1); }
+  .glass .gfield { border: 1px solid rgba(255,255,255,.14); background: #1F2937; transition: border-color .2s, background .2s, box-shadow .2s; }
+  .glass .gfield:hover { border-color: rgba(255,255,255,.26); background: #233044; }
+  .glass .gfield:focus-within { border-color: #3B82F6; background: #1E293B; box-shadow: 0 0 0 4px rgba(37,99,235,.28); }
+  .glass .gfield > span:first-child { font-size: 12px; letter-spacing: .04em; color: #9CA3AF; }
+  .glass .gfield select, .glass .gfield input, .glass #paxLabel { font-size: 17px; font-weight: 600; color: #F9FAFB; }
+  .glass .trip-tab { background: transparent !important; color: #D1D5DB !important; }
+  .glass .trip-tab[aria-checked="true"] { background: linear-gradient(90deg, #0284C7, #2563EB) !important; color: #fff !important; box-shadow: 0 8px 22px -10px rgba(37,99,235,.9); }
+  .glass select option { background: #111827; color: #F9FAFB; }
+  .glass #paxPop { background: #111827; border-color: rgba(255,255,255,.12); }
+  .glass input[type=date]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: .85; }
 
   /* ===== أزرار الترتيب ===== */
-  #sortTabs [aria-selected="true"] { background: linear-gradient(90deg, rgba(240,213,140,.18), rgba(212,175,55,.12)) !important; color: #E6C16A !important; box-shadow: inset 0 0 0 1px rgba(212,175,55,.35); }
-  html:not(.dark) #sortTabs [aria-selected="true"] { color: #8A6A12 !important; }
+  #sortTabs [aria-selected="true"] { background: linear-gradient(90deg, rgba(2,132,199,.22), rgba(37,99,235,.18)) !important; color: #7DD3FC !important; box-shadow: inset 0 0 0 1px rgba(56,189,248,.35); }
+  html:not(.dark) #sortTabs [aria-selected="true"] { color: #1D4ED8 !important; }
 
   /* ===== بطاقة الرحلة (أسلوب بطاقة الصعود) ===== */
   .fcard { position: relative; isolation: isolate; }
   .fcard::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; opacity: 0; transition: opacity .3s;
-    background: radial-gradient(500px 160px at 20% 0%, rgba(212,175,55,.10), transparent 70%); }
+    background: radial-gradient(500px 160px at 20% 0%, rgba(37,99,235,.10), transparent 70%); }
   .fcard:hover::before { opacity: 1; }
-  .fcard:hover { border-color: rgba(212,175,55,.45); transform: translateY(-2px); }
+  .fcard:hover { border-color: rgba(37,99,235,.45); transform: translateY(-2px); }
   .route-line { background-image: linear-gradient(90deg, rgb(var(--ink-subtle) / .55) 50%, transparent 0); background-size: 8px 1.5px; background-repeat: repeat-x; background-position: center; }
   @media (min-width: 768px) {
     .stub { border-inline-start: 2px dashed rgb(var(--line)); position: relative; }
@@ -186,13 +193,14 @@
   @media (max-width: 767.98px) { .stub { border-top: 2px dashed rgb(var(--line)); } }
 
   /* ===== لمسات ذهبية بدل الأزرق في الوضع الداكن ===== */
-  html.dark { --brand-50: 38 31 12; --brand-100: 84 67 22; --brand-700: 240 213 140; }
-  html.dark .bg-brand-600 { background-color: #D4AF37; color: #070A13; }
-  html.dark .hover\:bg-brand-700:hover { background-color: #E6C16A; }
-  html.dark .border-brand-600, html.dark .border-brand-500, html.dark .hover\:border-brand-500:hover { border-color: rgba(212,175,55,.75); }
-  html.dark .text-brand-600 { color: #E6C16A; }
-  html.dark .field:focus { border-color: rgba(230,193,106,.8); box-shadow: 0 0 0 4px rgba(212,175,55,.15) !important; }
-  input[type=checkbox], input[type=radio], input[type=range] { accent-color: #D4AF37; }
+  html.dark { --brand-50: 14 32 68; --brand-100: 29 64 140; --brand-700: 125 211 252; }
+  html.dark .text-brand-600 { color: #38BDF8; }
+  html.dark .field { background: #111A2E; border-color: rgba(255,255,255,.12); }
+  html.dark .field:focus { border-color: #3B82F6; box-shadow: 0 0 0 4px rgba(37,99,235,.25) !important; }
+  input[type=checkbox], input[type=radio], input[type=range] { accent-color: #2563EB; }
+  /* قالب البطاقة في الجافاسكربت يحمل لون الطائرة القديم — نعيد تلوينه من هنا دون لمس الدالة */
+  .fcard svg[fill="#E6C16A"] { fill: #38BDF8; }
+  .fcard span[class*="230,193,106"] { box-shadow: 0 0 10px rgba(56,189,248,.85) !important; }
 
   /* ===== عدّاد قفل المقاعد ===== */
   #holdText b { font-size: 1.05rem; font-variant-numeric: tabular-nums; padding: .05rem .45rem; border-radius: .5rem; background: rgb(var(--ink) / .08); }
@@ -218,6 +226,73 @@
   try { if (localStorage.getItem('theme') !== 'light') document.documentElement.classList.add('dark'); }
   catch (e) { document.documentElement.classList.add('dark'); }
 </script>
+<script>
+  // شاشة البداية: مرة واحدة في كل جلسة تصفح، وتُتجاوز تماماً عند تفعيل «تقليل الحركة»
+  (function () {
+    try {
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      if (sessionStorage.getItem('introSeen')) return;
+      sessionStorage.setItem('introSeen', '1');
+      document.documentElement.classList.add('intro');
+    } catch (e) { /* التخزين غير متاح ← بدون شاشة بداية */ }
+  })();
+</script>
+<style>
+  /* ===== شاشة البداية (Splash) — مخفية افتراضياً، تظهر فقط مع html.intro ===== */
+  .splash { display: none; }
+  html.intro .splash {
+    position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+    background: radial-gradient(520px 380px at 50% 42%, rgba(37,99,235,.13), transparent 70%),
+                radial-gradient(900px 600px at 80% 110%, rgba(59,130,246,.10), transparent 65%), #03050A;
+    color: #EEF2F8; font-family: "IBM Plex Sans Arabic", system-ui, sans-serif;
+    transition: opacity .55s ease, visibility .55s;
+    /* أمان: تختفي وحدها حتى لو تعطّل السكربت */
+    animation: splashFailsafe .5s ease 2.6s forwards;
+  }
+  html.intro.splash-done .splash { opacity: 0; visibility: hidden; pointer-events: none; }
+  .splash-inner { display: flex; flex-direction: column; align-items: center; gap: 22px; transform: translateY(-4%); }
+  .splash-orb { position: relative; width: 92px; height: 92px; display: grid; place-items: center; border-radius: 28px;
+    background: linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); border: 1px solid rgba(56,189,248,.35);
+    animation: splashGlow 2.2s ease-in-out infinite; }
+  .splash-orb::after { content: ''; position: absolute; inset: -18px; border-radius: 40px; border: 1px solid rgba(56,189,248,.18); animation: splashRing 2.2s ease-out infinite; }
+  .splash-orb svg { filter: drop-shadow(0 0 10px rgba(56,189,248,.85)); transform: rotate(-45deg); }
+  .splash-word { font-size: 30px; font-weight: 700; letter-spacing: .5px;
+    background: linear-gradient(90deg, #E0F2FE, #38BDF8 50%, #1D4ED8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .splash-word span { -webkit-text-fill-color: initial; color: initial; font-size: 22px; margin-inline-start: 6px; }
+  .splash-track { width: 168px; height: 2px; border-radius: 9999px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .splash-bar { height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #1D4ED8, #7DD3FC);
+    box-shadow: 0 0 12px rgba(125,211,252,.9); animation: splashFill 1.3s cubic-bezier(.3,.7,.2,1) forwards; }
+  html.splash-done .splash-bar { width: 100% !important; animation: none; transition: width .25s ease; }
+  .splash-text { margin-top: -8px; font-size: 13px; font-weight: 400; color: rgba(238,242,248,.5); letter-spacing: .3px; }
+  @keyframes splashGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(37,99,235,.0), 0 0 28px rgba(37,99,235,.18); } 50% { box-shadow: 0 0 0 6px rgba(37,99,235,.06), 0 0 48px rgba(37,99,235,.38); } }
+  @keyframes splashRing { from { opacity: .9; transform: scale(.85); } to { opacity: 0; transform: scale(1.15); } }
+  @keyframes splashFill { 0% { width: 0; } 60% { width: 78%; } 100% { width: 92%; } }
+  @keyframes splashFailsafe { to { opacity: 0; visibility: hidden; pointer-events: none; } }
+
+  /* ===== دخول عناصر الصفحة بعد شاشة البداية ===== */
+  html.intro .rv-down { opacity: 0; transform: translateY(-15px); }
+  html.intro .rv-up, html.intro .rv-up2 { opacity: 0; transform: translateY(20px); }
+  html.intro.intro-go .rv-down, html.intro.intro-go .rv-up, html.intro.intro-go .rv-up2 {
+    opacity: 1; transform: none; transition: opacity .7s ease, transform .8s cubic-bezier(.2,.8,.2,1); }
+  html.intro.intro-go .rv-up { transition-delay: .12s; }
+  html.intro.intro-go .rv-up2 { transition-delay: .26s; }
+
+  /* ===== ظهور بطاقات النتائج بالتتابع ===== */
+  #results.stagger > * { animation: cardIn .55s cubic-bezier(.2,.8,.2,1) both; }
+  #results.stagger > *:nth-child(2) { animation-delay: .07s; }
+  #results.stagger > *:nth-child(3) { animation-delay: .14s; }
+  #results.stagger > *:nth-child(4) { animation-delay: .21s; }
+  #results.stagger > *:nth-child(5) { animation-delay: .28s; }
+  #results.stagger > *:nth-child(n+6) { animation-delay: .33s; }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  /* احترام «تقليل الحركة»: لا شاشة بداية ولا حركة دخول */
+  @media (prefers-reduced-motion: reduce) {
+    html.intro .splash { display: none !important; }
+    html.intro .rv-down, html.intro .rv-up, html.intro .rv-up2 { opacity: 1 !important; transform: none !important; transition: none !important; }
+    #results.stagger > * { animation: none !important; }
+  }
+</style>
 <style>
   /* الطباعة: نطبع ملخص الحجز فقط من نافذة «تتبّع حجزي» */
   @media print {
@@ -235,24 +310,56 @@
 </head>
 <body class="bg-canvas font-sans leading-relaxed text-ink antialiased">
 
+<!-- ================= SPLASH (شاشة البداية) ================= -->
+<div class="splash" role="status" aria-label="جاري تجهيز الموقع">
+  <div class="splash-inner">
+    <div class="splash-orb" aria-hidden="true">
+      <svg width="42" height="42" viewBox="0 0 24 24" fill="#38BDF8"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>
+    </div>
+    <div class="splash-word">رحلتي<span aria-hidden="true">✈️</span></div>
+    <div class="splash-track" aria-hidden="true"><div class="splash-bar"></div></div>
+    <p class="splash-text">جاري تجهيز مقعدك...</p>
+  </div>
+</div>
+<script>
+  // تختفي بعد اكتمال التحميل أو بحد أقصى 1.5 ثانية من فتح الصفحة (أيهما أسبق)، ولا تقل عن 0.7 ثانية حتى لا «تومض»
+  (function () {
+    var root = document.documentElement;
+    if (!root.classList.contains('intro')) return;
+    var done = false, MIN = 700, MAX = 1500;
+    var since = function () { return (window.performance && performance.now) ? performance.now() : 0; };
+    function hide() {
+      if (done) return; done = true;
+      root.classList.add('splash-done');
+      requestAnimationFrame(function () { root.classList.add('intro-go'); });
+      setTimeout(function () {
+        var el = document.querySelector('.splash'); if (el) el.remove();
+        root.classList.remove('intro', 'intro-go', 'splash-done'); // رجوع الصفحة لحالتها الطبيعية تماماً
+      }, 1500);
+    }
+    setTimeout(hide, Math.max(0, MAX - since()));
+    window.addEventListener('load', function () { setTimeout(hide, Math.max(0, MIN - since())); });
+  })();
+</script>
+
 <!-- ================= HERO (header + headline + glass search) ================= -->
 <div class="hero relative overflow-hidden text-white">
   <div class="hero-grid pointer-events-none absolute inset-0" aria-hidden="true"></div>
-  <div class="pointer-events-none absolute -left-32 -top-32 h-[28rem] w-[28rem] rounded-full bg-gold-500/10 blur-3xl" aria-hidden="true"></div>
+  <div class="pointer-events-none absolute -left-32 -top-32 h-[28rem] w-[28rem] rounded-full bg-[#0284C7]/15 blur-3xl" aria-hidden="true"></div>
   <div class="pointer-events-none absolute -right-24 top-24 h-[26rem] w-[26rem] rounded-full bg-brand-600/20 blur-3xl" aria-hidden="true"></div>
   <!-- مسار طيران زخرفي -->
   <svg class="pointer-events-none absolute inset-x-0 top-16 hidden h-[340px] w-full opacity-70 md:block" viewBox="0 0 1200 340" preserveAspectRatio="none" fill="none" aria-hidden="true">
-    <defs><linearGradient id="pathGrad" x1="0" x2="1"><stop offset="0" stop-color="#D4AF37" stop-opacity="0"/><stop offset=".45" stop-color="#E6C16A" stop-opacity=".7"/><stop offset="1" stop-color="#60A5FA" stop-opacity="0"/></linearGradient></defs>
+    <defs><linearGradient id="pathGrad" x1="0" x2="1"><stop offset="0" stop-color="#2563EB" stop-opacity="0"/><stop offset=".45" stop-color="#38BDF8" stop-opacity=".7"/><stop offset="1" stop-color="#60A5FA" stop-opacity="0"/></linearGradient></defs>
     <path class="flight-path" d="M-20 300 C 260 40, 640 20, 1220 210" stroke="url(#pathGrad)" stroke-width="1.6"/>
-    <circle cx="210" cy="148" r="3" fill="#E6C16A"/><circle cx="210" cy="148" r="9" stroke="#E6C16A" stroke-opacity=".35"/>
+    <circle cx="210" cy="148" r="3" fill="#38BDF8"/><circle cx="210" cy="148" r="9" stroke="#38BDF8" stroke-opacity=".35"/>
     <circle cx="1010" cy="140" r="3" fill="#93C5FD"/><circle cx="1010" cy="140" r="9" stroke="#93C5FD" stroke-opacity=".35"/>
   </svg>
 
   <!-- ================= HEADER ================= -->
-  <header class="relative z-20">
+  <header class="rv-down relative z-20">
     <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 md:px-8">
       <a href="/" class="flex items-center gap-3">
-        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/5 ring-1 ring-white/10 backdrop-blur"><img src="/favicon.svg" alt="" width="40" height="40" class="h-8 w-8"></span>
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#0284C7] to-[#1D4ED8] shadow-[0_8px_24px_-8px_rgba(37,99,235,.7)] ring-1 ring-white/15"><svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
         <span data-site-name class="max-w-[48vw] truncate text-lg font-bold tracking-tight sm:max-w-none sm:text-h3"></span>
       </a>
       <nav class="flex items-center gap-1 text-sm font-medium text-white/75 sm:gap-3">
@@ -269,10 +376,10 @@
   </header>
 
   <!-- ================= HEADLINE ================= -->
-  <section class="relative z-10 mx-auto max-w-7xl px-4 pb-8 pt-4 md:px-8 md:pb-14 md:pt-16">
+  <section class="rv-up relative z-10 mx-auto max-w-7xl px-4 pb-8 pt-4 md:px-8 md:pb-14 md:pt-16">
     <div class="max-w-3xl">
       <p class="inline-flex items-center gap-2 rounded-full border border-gold-500/30 bg-gold-500/[0.08] px-3.5 py-1.5 text-xs font-semibold text-gold-200 backdrop-blur">
-        <span class="h-1.5 w-1.5 rounded-full bg-gold-400 shadow-[0_0_10px_#E6C16A]"></span> رحلات من ليبيا إلى العالم
+        <span class="h-1.5 w-1.5 rounded-full bg-sky-400 shadow-[0_0_10px_#38BDF8]"></span> رحلات من ليبيا إلى العالم
       </p>
       <h1 class="mt-5 text-[34px] font-bold leading-[1.25] tracking-tight sm:text-5xl sm:leading-[1.2] md:text-[60px] md:leading-[1.15]">
         سافر بأناقة،<br><span class="text-gold-grad">واحجز مقعدك بثقة</span>
@@ -280,14 +387,14 @@
       <p class="mt-5 max-w-xl text-base leading-8 text-white/65 md:text-lg">قارن بين شركات الطيران واحجز تذكرتك في دقائق، بأسعار واضحة بالدينار الليبي — وادفع كاش أو عبر سداد وتداول.</p>
     </div>
     <ul class="mt-8 flex flex-wrap gap-2.5 text-xs font-medium text-white/70 sm:text-sm">
-      <li class="flex items-center gap-2 rounded-full bg-white/[0.05] px-3.5 py-2 ring-1 ring-white/10 backdrop-blur"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E6C16A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>السعر النهائي بالدينار — بدون مفاجآت</li>
-      <li class="hidden items-center gap-2 rounded-full bg-white/[0.05] px-3.5 py-2 ring-1 ring-white/10 backdrop-blur sm:flex"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E6C16A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>مقعدك محجوز 10 دقائق أثناء الحجز</li>
-      <li class="hidden items-center gap-2 rounded-full bg-white/[0.05] px-3.5 py-2 ring-1 ring-white/10 backdrop-blur sm:flex"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E6C16A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 1-13.4 7.9L3 21l1.1-4.6A9 9 0 1 1 21 12z"/></svg>تأكيد سريع عبر واتساب</li>
+      <li class="flex items-center gap-2 rounded-full bg-white/[0.05] px-3.5 py-2 ring-1 ring-white/10 backdrop-blur"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>السعر النهائي بالدينار — بدون مفاجآت</li>
+      <li class="hidden items-center gap-2 rounded-full bg-white/[0.05] px-3.5 py-2 ring-1 ring-white/10 backdrop-blur sm:flex"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>مقعدك محجوز 10 دقائق أثناء الحجز</li>
+      <li class="hidden items-center gap-2 rounded-full bg-white/[0.05] px-3.5 py-2 ring-1 ring-white/10 backdrop-blur sm:flex"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 1-13.4 7.9L3 21l1.1-4.6A9 9 0 1 1 21 12z"/></svg>تأكيد سريع عبر واتساب</li>
     </ul>
   </section>
 
   <!-- ================= GLASS SEARCH ================= -->
-  <div class="relative z-10 mx-auto max-w-7xl px-4 pb-14 md:px-8 md:pb-20">
+  <div class="rv-up2 relative z-10 mx-auto max-w-7xl px-4 pb-14 md:px-8 md:pb-20">
     <form id="searchForm" class="glass rounded-[28px] p-3 text-ink shadow-glass sm:p-4 md:p-5" novalidate>
       <div class="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
         <div class="flex items-center gap-1 rounded-full bg-white/[0.06] p-1 ring-1 ring-white/10" role="radiogroup" aria-label="نوع الرحلة">
@@ -502,7 +609,7 @@
             <div class="grid gap-3 sm:grid-cols-3">
               <label class="cursor-pointer rounded-2xl border border-line bg-canvas/40 p-4 transition hover:border-gold-500/50 has-[:checked]:border-gold-500 has-[:checked]:bg-gold-500/[0.08] has-[:checked]:shadow-gold">
                 <input type="radio" name="pay" value="cod" class="sr-only">
-                <span class="mb-2 grid h-9 w-9 place-items-center rounded-sm bg-accent-500 text-white"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg></span>
+                <span class="mb-2 grid h-9 w-9 place-items-center rounded-sm bg-[#0284C7] text-white"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg></span>
                 <span class="block text-sm font-semibold">كاش عند الاستلام</span>
                 <span class="block text-xs text-ink-muted">في المكتب أو مع المندوب</span>
               </label>
@@ -567,7 +674,7 @@
           <span class="absolute -left-3 -top-3 h-6 w-6 rounded-full bg-surface" aria-hidden="true"></span>
         </div>
         <div class="space-y-2.5 px-5 py-4 text-sm">
-          <div class="flex justify-between"><span class="text-ink-muted">الحالة</span><span class="rounded-full bg-accent-50 px-2.5 py-0.5 text-xs font-semibold text-accent-600">بانتظار تأكيد المكتب</span></div>
+          <div class="flex justify-between"><span class="text-ink-muted">الحالة</span><span class="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700">بانتظار تأكيد المكتب</span></div>
           <div class="flex justify-between"><span class="text-ink-muted">طريقة الدفع</span><span id="mPay" class="font-semibold"></span></div>
           <div class="flex items-baseline justify-between border-t border-line pt-3"><span class="text-ink-muted">الإجمالي</span><span id="mTotal" class="font-num text-xl font-bold"></span></div>
         </div>
@@ -1561,6 +1668,23 @@ $('#trackForm').addEventListener('submit', async e => {
 // فتح التتبع مباشرة من رابط: /?track=TKR-XXXXXX
 const trackParam = new URLSearchParams(location.search).get('track');
 if (trackParam) { const t = setInterval(() => { if (CFG) { clearInterval(t); openTrack(trackParam); } }, 100); }
+</script>
+<script>
+  // ظهور متتابع لبطاقات النتائج: يراقب #results فقط ويضيف/يزيل فئة تنسيق.
+  // يتحرك فقط عند وصول نتائج بحث جديدة (بعد هياكل التحميل)، ولا يتحرك مع الفلترة أو الترتيب.
+  (function () {
+    var box = document.getElementById('results');
+    if (!box || !window.MutationObserver) return;
+    var reduce = matchMedia('(prefers-reduced-motion: reduce)');
+    var fresh = false;
+    new MutationObserver(function () {
+      var first = box.firstElementChild;
+      if (first && first.classList.contains('animate-pulse')) { fresh = true; box.classList.remove('stagger'); return; }
+      if (fresh && !reduce.matches) { box.classList.remove('stagger'); void box.offsetWidth; box.classList.add('stagger'); }
+      else box.classList.remove('stagger');
+      fresh = false;
+    }).observe(box, { childList: true });
+  })();
 </script>
 </body>
 </html>
