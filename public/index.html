@@ -141,10 +141,13 @@
       radial-gradient(700px 360px at 18% 62%, rgba(255,255,255,.55), transparent 70%),
       linear-gradient(180deg, #F3F4F6 0%, #E5E7EB 62%, rgb(var(--canvas)) 100%);
   }
-  .hero-ghost { color: #111827; opacity: .035; font-weight: 700; line-height: .9; letter-spacing: -.03em; white-space: nowrap; user-select: none; }
+  .hero-ghost { color: #111827; opacity: .03; font-weight: 700; line-height: .9; letter-spacing: -.03em; white-space: nowrap; user-select: none; }
   .hero-kicker { font-weight: 300; letter-spacing: -.02em; }
   .hero-plane { position: absolute; z-index: 0; pointer-events: none; user-select: none; max-width: none;
-    filter: drop-shadow(0 18px 22px rgba(17,24,39,.12)); }
+    filter: drop-shadow(0 18px 22px rgba(17,24,39,.12));
+    /* تلاشي ناعم للحافة السفلية بدل خط قاطع فوق كبسولة البحث */
+    -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+            mask-image: linear-gradient(to bottom, #000 78%, transparent 100%); }
   @media (min-width: 1024px) {
     .hero-plane { width: min(68vw, 1120px); left: calc((100% - 100vw) / 2 - 3vw); bottom: calc(100% - 30px); }
   }
@@ -160,7 +163,7 @@
       radial-gradient(820px 540px at 92% 14%, rgba(37,99,235,.24), transparent 60%),
       linear-gradient(180deg, #030712 0%, #07102A 58%, rgb(var(--canvas)) 100%);
   }
-  html.dark .hero-ghost { color: #fff; opacity: .04; }
+  html.dark .hero-ghost { color: #fff; opacity: .03; }
   html.dark .hero-plane { filter: drop-shadow(0 26px 34px rgba(0,0,0,.55)) brightness(.92); }
   html.dark .hero-chip { background: rgba(255,255,255,.05); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
 
@@ -483,8 +486,8 @@
             <button type="button" id="paxDone" class="btn-primary mt-3 w-full py-2">تم</button>
           </div>
         </div>
-        <button type="submit" class="search-btn flex min-h-[64px] items-center justify-center gap-2 py-4 text-base font-bold lg:col-span-1">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <button type="submit" class="search-btn flex min-h-[64px] items-center justify-center gap-2 py-4 text-base font-bold lg:col-span-1 lg:gap-0 lg:p-0">
+          <svg class="block shrink-0" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.9-4.9"/></svg>
           <span class="lg:hidden">ابحث عن رحلات</span>
         </button>
       </div>
