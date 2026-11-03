@@ -392,17 +392,34 @@ async function validateBooking(body) {
   const lastTravel = (ret && ret.depart_date) || (out && out.depart_date) || today();
   const minExpiry = addMonths(lastTravel, PASSPORT_MIN_MONTHS);
   const seenPassports = new Set();
+  // العمر بالسنوات الكاملة في تاريخ معيّن (لتصنيف بالغ/طفل/رضيع كما تطلبه شركات الطيران)
+  const ageOn = (birth, date) => {
+    const [by, bm, bd] = birth.split('-').map(Number), [y, m, d] = date.split('-').map(Number);
+    return y - by - ((m < bm || (m === bm && d < bd)) ? 1 : 0);
+  };
+  const firstTravel = (out && out.depart_date) || today();
   const passengers = list.map((p, i) => {
     const fullName = String(p?.fullName ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
     const passport = toAsciiDigits(p?.passport).trim().toUpperCase();
     const passport_expiry = toAsciiDigits(p?.passportExpiry).trim();
+    const birth_date = toAsciiDigits(p?.birthDate).trim();
+    const type = expected[i] || 'adult';
+    if (!isDate(birth_date)) errors.push(`أدخل تاريخ ميلاد المسافر ${i + 1}`);
+    else if (birth_date > today()) errors.push(`تاريخ ميلاد المسافر ${i + 1} غير صالح`);
+    else {
+      const age = ageOn(birth_date, firstTravel);
+      if (age > 120) errors.push(`تاريخ ميلاد المسافر ${i + 1} غير صالح`);
+      else if (type === 'adult' && age < 12) errors.push(`المسافر ${i + 1} مسجّل بالغاً لكن عمره أقل من 12 سنة يوم الرحلة`);
+      else if (type === 'child' && (age < 2 || age >= 12)) errors.push(`المسافر ${i + 1} مسجّل طفلاً — عمر الطفل من 2 إلى 11 سنة يوم الرحلة`);
+      else if (type === 'infant' && ageOn(birth_date, lastTravel) >= 2) errors.push(`المسافر ${i + 1} مسجّل رضيعاً — لازم يكون أقل من سنتين طوال الرحلة`);
+    }
     if (fullName.length > 60 || !NAME_RE.test(fullName)) errors.push(`اسم المسافر ${i + 1}: اكتب الاسم واللقب بالحروف الإنجليزية كما في الجواز`);
     if (!PASSPORT_RE.test(passport)) errors.push(`رقم جواز المسافر ${i + 1} غير صالح (6–9 حروف وأرقام إنجليزية)`);
     else if (seenPassports.has(passport)) errors.push(`رقم جواز المسافر ${i + 1} مكرر`);
     seenPassports.add(passport);
     if (!isDate(passport_expiry)) errors.push(`أدخل تاريخ انتهاء جواز المسافر ${i + 1}`);
     else if (passport_expiry < minExpiry) errors.push(`جواز المسافر ${i + 1} لازم يكون صالحاً حتى ${minExpiry} على الأقل (6 أشهر بعد تاريخ الرحلة)`);
-    return { fullName, passport, passport_expiry, type: expected[i] || 'adult' };
+    return { fullName, passport, passport_expiry, birth_date, type };
   });
 
   const contact_phone = normalizePhone(b.contactPhone);
@@ -716,7 +733,7 @@ const BOOK_ST_AR = { pending: 'بانتظار التأكيد', confirmed: 'مؤ�
 
 app.get('/api/bookings/export.csv', requireAdmin, ah(async (req, res) => {
   const head = ['رقم الحجز', 'تاريخ الحجز', 'وقت الحجز', 'نوع الرحلة', 'شركة الطيران', 'رقم الرحلة', 'من', 'إلى',
-    'تاريخ الذهاب', 'وقت الذهاب', 'تاريخ العودة', 'بالغين', 'أطفال', 'رضّع', 'أسماء المسافرين', 'أرقام الجوازات', 'انتهاء الجوازات',
+    'تاريخ الذهاب', 'وقت الذهاب', 'تاريخ العودة', 'بالغين', 'أطفال', 'رضّع', 'أسماء المسافرين', 'أرقام الجوازات', 'انتهاء الجوازات', 'تواريخ الميلاد',
     'هاتف التواصل', 'البريد', 'طريقة الدفع', 'هاتف المحفظة', 'حالة الدفع', 'حالة الحجز', 'تاريخ الدفع',
     'سعر التذاكر', 'الضرائب', 'رسوم الخدمة', 'رسوم التحصيل', 'الإجمالي (د.ل)'];
   // نمنع Excel من تنفيذ خلية تبدأ بـ = + - @ (حماية من حقن الصيغ)
@@ -736,7 +753,7 @@ app.get('/api/bookings/export.csv', requireAdmin, ah(async (req, res) => {
     return [b.ref, d, t, b.trip_type === 'round' ? 'ذهاب وعودة' : 'ذهاب فقط', b.airline, b.outbound?.flight_no || '',
       b.origin, b.destination, b.depart_date, b.depart_time, b.return_date || '',
       b.adults ?? pax.length, b.children || 0, b.infants || 0,
-      pax.map(p => p.fullName).join(' | '), pax.map(p => p.passport).join(' | '), pax.map(p => p.passport_expiry || '').join(' | '),
+      pax.map(p => p.fullName).join(' | '), pax.map(p => p.passport).join(' | '), pax.map(p => p.passport_expiry || '').join(' | '), pax.map(p => p.birth_date || '').join(' | '),
       b.contact_phone, b.email, PAY_AR[b.payment_method] || b.payment_method, b.phone || '',
       PAY_ST_AR[b.status] || b.status, BOOK_ST_AR[b.booking_status] || b.booking_status, local(b.paid_at)[0],
       b.fare_total, b.taxes, b.service_fee, b.cod_fee || 0, b.total].map(cell).join(',');
