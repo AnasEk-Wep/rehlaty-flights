@@ -120,7 +120,11 @@
         <h1 class="text-2xl font-bold">الرحلات والأسعار</h1>
         <p class="text-sm text-ink-muted">كل رحلة لها فئات أسعار: تُباع الأرخص أولاً، وعند نفادها يرتفع السعر تلقائياً، وعند نفاد كل المقاعد تُقفل الرحلة.</p>
       </div>
-      <button id="addFlight" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">+ إضافة رحلة</button>
+      <div class="flex flex-wrap gap-2">
+        <button id="tplBtn" type="button" class="rounded-lg border border-line bg-white px-4 py-2 text-sm font-semibold hover:bg-canvas">⬇️ تنزيل نموذج Excel</button>
+        <button id="importBtn" type="button" class="rounded-lg bg-ok-600 px-4 py-2 text-sm font-semibold text-white hover:bg-ok-700">📥 استيراد جدول الرحلات (Excel / CSV)</button>
+        <button id="addFlight" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">+ إضافة رحلة</button>
+      </div>
     </div>
     <form id="fxForm" class="mb-4 flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-card" novalidate>
       <div class="text-sm font-semibold">💱 أسعار الصرف <span class="block text-xs font-normal text-ink-muted">للرحلات المسعّرة بالدولار أو اليورو فقط — تتحول للدينار تلقائياً</span></div>
@@ -163,7 +167,8 @@
         <label class="block"><span class="mb-1 block text-xs font-semibold">عبر</span><input name="via" placeholder="تونس" class="fi"></label>
       </div>
     </div>
-    <fieldset class="mt-5"><legend class="mb-2 text-xs font-semibold">أيام التشغيل</legend><div id="fmDays" class="flex flex-wrap gap-2"></div></fieldset>
+    <fieldset id="fmDaysBox" class="mt-5"><legend class="mb-2 text-xs font-semibold">أيام التشغيل</legend><div id="fmDays" class="flex flex-wrap gap-2"></div></fieldset>
+    <p id="fmDatedNote" class="mt-5 hidden rounded-lg bg-brand-50 p-3 text-xs leading-relaxed text-brand-700"></p>
     <fieldset class="mt-5 rounded-2xl border border-line p-4">
       <legend class="px-1 text-sm font-semibold">فئات الأسعار</legend>
       <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -180,6 +185,34 @@
       <div class="mr-auto flex gap-2"><button type="button" data-fm-close class="rounded-lg px-4 py-2 text-sm font-semibold text-ink-muted hover:bg-canvas">إلغاء</button><button id="fmSave" class="rounded-lg bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">حفظ</button></div>
     </div>
   </form>
+</div>
+
+<!-- ================= استيراد جدول الرحلات ================= -->
+<div id="importModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-navy-900/60 p-4" role="dialog" aria-modal="true" aria-labelledby="imTitle">
+  <div class="my-6 w-full max-w-4xl rounded-2xl bg-white p-6 shadow-card">
+    <div class="mb-1 flex items-center justify-between"><h2 id="imTitle" class="text-xl font-bold">استيراد جدول الرحلات</h2><button type="button" data-im-close class="text-2xl leading-none text-ink-muted" aria-label="إغلاق">×</button></div>
+    <p class="mb-4 text-xs text-ink-muted">صف لكل رحلة في يوم معيّن: رقم الرحلة، من، إلى، تاريخ ووقت الإقلاع، تاريخ ووقت الوصول، السعر، عدد المقاعد. نراجع الملف أولاً ونعرض لك النتيجة قبل الحفظ — ولا يُحفظ شيء إذا كان فيه خطأ.
+      <button type="button" id="tplBtn2" class="font-semibold text-brand-700 hover:underline">تنزيل النموذج الجاهز</button></p>
+    <label id="imDrop" class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-line bg-canvas px-6 py-10 text-center transition-colors hover:border-brand-600 hover:bg-brand-50">
+      <span class="text-4xl" aria-hidden="true">📄</span>
+      <span class="text-sm font-semibold">اسحب ملف Excel أو CSV وأفلته هنا</span>
+      <span class="text-xs text-ink-muted">أو اضغط لاختيار ملف · ‎.xlsx‎ أو ‎.csv‎ · حتى 5 ميغابايت و 2000 رحلة</span>
+      <input id="imFile" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" class="sr-only">
+    </label>
+    <fieldset class="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+      <legend class="mb-1 text-xs font-semibold">إذا كان رقم الرحلة موجوداً مسبقاً في الجدول:</legend>
+      <label class="flex items-center gap-2"><input type="radio" name="imMode" value="merge" checked class="accent-brand-600"> أضف التواريخ الجديدة وحدّث الموجودة <span class="text-xs text-ink-muted">(مُستحسن)</span></label>
+      <label class="flex items-center gap-2"><input type="radio" name="imMode" value="replace" class="accent-red-600"> استبدل الرحلة بالكامل بما في الملف</label>
+    </fieldset>
+    <div id="imResult" class="mt-4 hidden"></div>
+    <div class="mt-5 flex flex-wrap items-center justify-between gap-2">
+      <p id="imFileName" class="text-xs text-ink-muted"></p>
+      <div class="mr-auto flex gap-2">
+        <button type="button" data-im-close class="rounded-lg px-4 py-2 text-sm font-semibold text-ink-muted hover:bg-canvas">إلغاء</button>
+        <button type="button" id="imSave" disabled class="rounded-lg bg-ok-600 px-5 py-2 text-sm font-bold text-white hover:bg-ok-700 disabled:cursor-not-allowed disabled:opacity-40">حفظ الرحلات</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ================= المقاعد حسب اليوم ================= -->
@@ -584,18 +617,22 @@
     renderFlights();
   }
   const city = c => FL.airports[c]?.city || c;
+  const todayISO = () => new Date().toISOString().slice(0, 10);
   function renderFlights() {
     const list = [...FL.schedules].sort((a, b) => (a.from + a.to + a.dep).localeCompare(b.from + b.to + b.dep));
     $('#fEmpty').classList.toggle('hidden', list.length > 0);
     $('#fRows').innerHTML = list.map(s => {
-      const days = s.days.length === 7 ? 'يومياً' : s.days.map(d => DAY_NAMES[d]).join('، ');
-      const tiers = s.tiers.map((t, i) => `<span class="inline-block whitespace-nowrap rounded-md ${i ? 'bg-canvas' : 'bg-ok-50 text-ok-700'} px-2 py-0.5 text-xs font-semibold">${t.seats} × ${fmt(t.price)} ${CUR[s.currency]}</span>`).join(' ');
+      const fut = s.dated ? Object.keys(s.dated).filter(d => d >= todayISO()).sort() : null;
+      const days = fut ? `<span class="font-semibold">📅 تواريخ محددة</span><br><span class="text-ink-muted">${fut.length ? `${fut.length} رحلة قادمة · أقربها ${fmtDate(fut[0])}` : 'لا توجد تواريخ قادمة'}</span>`
+        : s.days.length === 7 ? 'يومياً' : s.days.map(d => DAY_NAMES[d]).join('، ');
+      const prices = fut && fut.flatMap(d => s.dated[d].tiers.map(t => t.price));
+      const tiers = fut && fut.length > 1 ? `<span class="inline-block whitespace-nowrap rounded-md bg-ok-50 px-2 py-0.5 text-xs font-semibold text-ok-700">${fmt(Math.min(...prices))}${Math.max(...prices) !== Math.min(...prices) ? ' – ' + fmt(Math.max(...prices)) : ''} ${CUR[s.currency]}</span>` : s.tiers.map((t, i) => `<span class="inline-block whitespace-nowrap rounded-md ${i ? 'bg-canvas' : 'bg-ok-50 text-ok-700'} px-2 py-0.5 text-xs font-semibold">${t.seats} × ${fmt(t.price)} ${CUR[s.currency]}</span>`).join(' ');
       const st = !s.active ? badge(['موقوفة', 'bg-canvas text-ink-muted']) : !s.sellable ? badge(['بانتظار سعر الصرف', 'bg-accent-50 text-accent-600']) : badge(['معروضة', 'bg-ok-50 text-ok-700']);
       return `<tr class="align-top hover:bg-canvas/60">
         <td class="px-4 py-3"><div class="flex items-center gap-2"><span class="grid h-9 w-9 place-items-center rounded-lg text-xs font-bold text-white" style="background:${esc(s.color)}">${esc(s.code)}</span><div><p class="font-semibold" dir="ltr">${esc(s.no)}</p><p class="text-xs text-ink-muted">${esc(s.airline)}</p></div></div></td>
         <td class="px-4 py-3"><p class="font-semibold">${esc(city(s.from))} ← ${esc(city(s.to))}</p><p class="text-xs text-ink-muted" dir="ltr">${s.from} ${s.dep} → ${s.to} ${s.arr}</p><p class="text-xs text-ink-subtle">${s.stops ? 'توقف' + (s.via ? ' · ' + esc(s.via) : '') : 'مباشرة'}</p></td>
         <td class="px-4 py-3 text-xs">${days}</td>
-        <td class="px-4 py-3"><div class="flex flex-wrap gap-1">${tiers}</div><p class="mt-1 text-xs text-ink-subtle">السعة: ${s.capacity} مقعد</p></td>
+        <td class="px-4 py-3"><div class="flex flex-wrap gap-1">${tiers}</div><p class="mt-1 text-xs text-ink-subtle">${fut && fut.length > 1 ? 'السعر والمقاعد تختلف حسب التاريخ' : `السعة: ${s.capacity} مقعد`}</p></td>
         <td class="px-4 py-3">${st}</td>
         <td class="px-4 py-3"><div class="flex flex-wrap gap-1.5">
           <button data-f="dates" data-no="${esc(s.no)}" class="whitespace-nowrap rounded-xl bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100">💺 المقاعد حسب اليوم</button>
@@ -636,6 +673,10 @@
     fm.no.readOnly = !!s; fm.no.classList.toggle('bg-canvas', !!s);
     $('#fmDays').innerHTML = DAY_NAMES.map((n, d) => `<label class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm has-[:checked]:border-brand-600 has-[:checked]:bg-brand-50"><input type="checkbox" value="${d}" ${v.days.includes(d) ? 'checked' : ''} class="accent-brand-600">${n}</label>`).join('');
     $('#fmTiers').innerHTML = v.tiers.map(tierRow).join(''); refreshTiers();
+    const dated = !!(s && s.dated);
+    $('#fmDaysBox').classList.toggle('hidden', dated);
+    $('#fmDatedNote').classList.toggle('hidden', !dated);
+    if (dated) $('#fmDatedNote').textContent = 'رحلة بتواريخ محددة (مستوردة من Excel). أي تغيير في الوقت أو المدة أو فئات الأسعار هنا يُطبَّق على كل تواريخها القادمة، وما لم تغيّره يبقى كما هو لكل تاريخ. لإضافة تواريخ أو تعديل تاريخ واحد: أعد استيراد الملف.';
     $('#fmDelete').classList.toggle('hidden', !s);
     fmModal.classList.remove('hidden'); fmModal.classList.add('flex');
     (s ? fm.airline : fm.no).focus();
@@ -684,6 +725,105 @@
     catch (err) { toast(err.message, false); }
   });
 
+  // ---------- استيراد جدول الرحلات (Excel / CSV) ----------
+  async function downloadTemplate() {
+    try {
+      const r = await fetch('/api/admin/flights/template.xlsx', { credentials: 'same-origin' });
+      if (r.status === 401) return toLogin();
+      if (!r.ok) throw new Error('تعذر تنزيل النموذج');
+      const url = URL.createObjectURL(await r.blob());
+      const a = Object.assign(document.createElement('a'), { href: url, download: 'flights-template.xlsx' });
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) { toast(err.message, false); }
+  }
+  $('#tplBtn').addEventListener('click', downloadTemplate);
+  $('#tplBtn2').addEventListener('click', downloadTemplate);
+
+  const imModal = $('#importModal'); let imFile = null, imBusy = false;
+  const imMode = () => document.querySelector('input[name=imMode]:checked').value;
+  function openImport(file) {
+    imFile = null; $('#imResult').classList.add('hidden'); $('#imResult').innerHTML = ''; $('#imFileName').textContent = '';
+    $('#imSave').disabled = true; $('#imSave').textContent = 'حفظ الرحلات'; $('#imFile').value = '';
+    imModal.classList.remove('hidden'); imModal.classList.add('flex');
+    if (file) pickFile(file);
+  }
+  const closeImport = () => { if (imBusy) return; imModal.classList.add('hidden'); imModal.classList.remove('flex'); };
+  $('#importBtn').addEventListener('click', () => openImport());
+  imModal.addEventListener('click', e => { if (e.target === imModal || e.target.closest('[data-im-close]')) closeImport(); });
+
+  // سحب وإفلات — على المربع، أو على صفحة الرحلات كلها
+  const drop = $('#imDrop');
+  const isFileDrag = e => [...(e.dataTransfer?.types || [])].includes('Files');
+  ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { if (!isFileDrag(e)) return; e.preventDefault(); drop.classList.add('border-brand-600', 'bg-brand-50'); }));
+  ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, () => drop.classList.remove('border-brand-600', 'bg-brand-50')));
+  drop.addEventListener('drop', e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) pickFile(f); });
+  $('#viewFlights').addEventListener('dragover', e => { if (isFileDrag(e)) e.preventDefault(); });
+  $('#viewFlights').addEventListener('drop', e => { if (!isFileDrag(e)) return; e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) openImport(f); });
+  $('#imFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) pickFile(f); });
+  document.querySelectorAll('input[name=imMode]').forEach(r => r.addEventListener('change', () => { if (imFile) runImport(true); }));
+
+  function pickFile(f) {
+    if (!/\.(xlsx|csv)$/i.test(f.name)) { toast('اختر ملف ‎.xlsx‎ أو ‎.csv‎ (من Excel: حفظ باسم ← Excel Workbook)', false); return; }
+    if (f.size > 5 * 1024 * 1024) { toast('حجم الملف أكبر من 5 ميغابايت', false); return; }
+    imFile = f;
+    $('#imFileName').textContent = `📄 ${f.name} · ${(f.size / 1024).toFixed(0)} ك.ب`;
+    runImport(true);
+  }
+
+  async function runImport(dry) {
+    if (!imFile || imBusy) return;
+    imBusy = true; $('#imSave').disabled = true;
+    const box = $('#imResult');
+    box.classList.remove('hidden');
+    if (dry) box.innerHTML = '<p class="rounded-xl bg-canvas p-4 text-center text-sm text-ink-muted">جارٍ مراجعة الملف…</p>';
+    else $('#imSave').textContent = 'جارٍ الحفظ…';
+    try {
+      const qs = new URLSearchParams({ filename: imFile.name, mode: imMode(), dry: dry ? '1' : '0' });
+      const r = await fetch(`/api/admin/flights/import?${qs}`, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: await imFile.arrayBuffer(),
+      });
+      if (r.status === 401) { imBusy = false; return toLogin(); }
+      const d = await r.json().catch(() => ({ error: 'رد غير متوقع من السيرفر' }));
+      if (!dry && r.ok) {
+        imBusy = false; closeImport(); await loadFlights();
+        const s = d.summary;
+        toast(`تم الحفظ: ${s.dates} رحلة · ${s.created.length} رقم جديد · ${s.updated.length} محدّث`);
+        return;
+      }
+      renderImport(d, r.ok);
+    } catch (err) {
+      box.innerHTML = `<p class="rounded-xl bg-red-50 p-4 text-sm text-red-700">${esc(err.message === 'Failed to fetch' ? 'تعذر الاتصال بالسيرفر' : err.message)}</p>`;
+    } finally { imBusy = false; if ($('#imSave').textContent === 'جارٍ الحفظ…') $('#imSave').textContent = 'حفظ الرحلات'; }
+  }
+
+  function renderImport(d, ok) {
+    const s = d.summary;
+    const head = !s ? `<p class="rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-700">❌ ${esc(d.error || 'تعذر قراءة الملف')}</p>`
+      : ok ? `<div class="rounded-xl bg-ok-50 p-4 text-sm text-ok-700"><p class="font-bold">✅ الملف سليم — جاهز للحفظ</p>
+          <p class="mt-1">${s.dates} رحلة (تاريخ) في ${s.created.length + s.updated.length} رقم رحلة: ${s.created.length} جديد${s.updated.length ? ` · ${s.updated.length} موجود سيُ${s.mode === 'replace' ? 'ستبدل' : 'حدَّث'} (${s.updated.map(esc).join('، ')})` : ''}</p></div>`
+      : `<div class="rounded-xl bg-red-50 p-4 text-sm text-red-700"><p class="font-bold">❌ ${esc(d.error)}</p><p class="mt-1 text-xs">لن يُحفظ أي شيء حتى تصحَّح كل الأخطاء. عدّل الملف ثم اسحبه هنا مرة أخرى.</p></div>`;
+    const errs = (d.errors || []).length ? `<div class="mt-3 max-h-56 overflow-y-auto rounded-xl border border-red-200"><table class="w-full text-right text-xs">
+        <thead class="sticky top-0 bg-red-50 text-red-700"><tr><th class="w-20 px-3 py-2">السطر</th><th class="px-3 py-2">المشكلة</th></tr></thead>
+        <tbody class="divide-y divide-red-100">${d.errors.map(e => `<tr><td class="px-3 py-1.5 font-semibold" dir="ltr">${e.row}</td><td class="px-3 py-1.5">${esc(e.msg)}</td></tr>`).join('')}</tbody></table></div>` : '';
+    const warns = (d.warnings || []).length ? `<ul class="mt-3 list-inside list-disc space-y-1 rounded-xl bg-accent-50 p-4 text-xs text-accent-600">${d.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : '';
+    const prev = ok && (d.preview || []).length ? `<p class="mt-4 mb-2 text-xs font-semibold text-ink-muted">معاينة${d.preview.length < s.dates ? ` (أول ${d.preview.length})` : ''}:</p>
+      <div class="max-h-72 overflow-auto rounded-xl border border-line"><table class="w-full min-w-[640px] text-right text-xs">
+        <thead class="sticky top-0 bg-canvas text-ink-muted"><tr><th class="px-3 py-2">السطر</th><th class="px-3 py-2">الرحلة</th><th class="px-3 py-2">المسار</th><th class="px-3 py-2">التاريخ</th><th class="px-3 py-2">الإقلاع → الوصول</th><th class="px-3 py-2">المدة</th><th class="px-3 py-2">السعر</th><th class="px-3 py-2">المقاعد</th></tr></thead>
+        <tbody class="divide-y divide-line">${d.preview.map(p => `<tr>
+          <td class="px-3 py-1.5 text-ink-subtle" dir="ltr">${p.row}</td><td class="px-3 py-1.5 font-semibold" dir="ltr">${esc(p.no)}</td>
+          <td class="px-3 py-1.5">${esc(city(p.from))} ← ${esc(city(p.to))}</td><td class="px-3 py-1.5 whitespace-nowrap">${fmtDate(p.date)}</td>
+          <td class="px-3 py-1.5" dir="ltr">${p.dep} → ${p.arr}</td><td class="px-3 py-1.5">${Math.floor(p.dur / 60)}س ${p.dur % 60}د</td>
+          <td class="px-3 py-1.5 whitespace-nowrap">${fmt(p.price)} ${CUR[p.currency]}</td><td class="px-3 py-1.5">${p.seats}</td></tr>`).join('')}</tbody></table></div>` : '';
+    $('#imResult').innerHTML = head + errs + warns + prev;
+    $('#imSave').disabled = !ok;
+    if (ok) $('#imSave').textContent = `حفظ ${s.dates} رحلة`;
+  }
+  $('#imSave').addEventListener('click', () => runImport(false));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !imModal.classList.contains('hidden')) closeImport(); });
+
   // ---------- المقاعد حسب اليوم ----------
   const dmModal = $('#datesModal'); let dmSched = null;
   async function openDates(s) {
@@ -694,12 +834,13 @@
     try {
       const d = await api(`/api/admin/schedules/${encodeURIComponent(s.no)}/dates?days=90`);
       $('#dmRows').innerHTML = d.dates.map(x => {
-        const pct = Math.round((x.online + x.offline) / d.capacity * 100);
+        const cap = x.capacity ?? d.capacity;
+        const pct = Math.round((x.online + x.offline) / cap * 100);
         return `<tr data-date="${x.date}" class="${x.closed ? 'bg-canvas text-ink-subtle' : ''}">
-          <td class="px-3 py-2 whitespace-nowrap">${fmtDate(x.date)}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${fmtDate(x.date)}${d.dated ? `<span class="block text-xs text-ink-subtle" dir="ltr">${x.dep}</span>` : ''}</td>
           <td class="px-3 py-2">${x.online}</td>
           <td class="px-3 py-2"><input data-off inputmode="numeric" dir="ltr" value="${x.offline || ''}" placeholder="0" class="w-16 rounded-lg border border-line px-2 py-1 text-sm"></td>
-          <td class="px-3 py-2"><span class="font-semibold ${x.left === 0 ? 'text-red-600' : x.left <= 5 ? 'text-accent-600' : ''}">${x.left}</span><span class="text-xs text-ink-subtle"> / ${d.capacity}</span><div class="mt-1 h-1.5 w-20 rounded-full bg-line"><div class="h-1.5 rounded-full ${pct >= 90 ? 'bg-red-500' : 'bg-brand-600'}" style="width:${Math.min(pct, 100)}%"></div></div></td>
+          <td class="px-3 py-2"><span class="font-semibold ${x.left === 0 ? 'text-red-600' : x.left <= 5 ? 'text-accent-600' : ''}">${x.left}</span><span class="text-xs text-ink-subtle"> / ${cap}</span><div class="mt-1 h-1.5 w-20 rounded-full bg-line"><div class="h-1.5 rounded-full ${pct >= 90 ? 'bg-red-500' : 'bg-brand-600'}" style="width:${Math.min(pct, 100)}%"></div></div></td>
           <td class="px-3 py-2 whitespace-nowrap">${x.left ? fmt(x.price) + ' د.ل' : '<span class="text-red-600">مكتملة</span>'}</td>
           <td class="px-3 py-2"><input data-closed type="checkbox" ${x.closed ? 'checked' : ''} class="h-4 w-4 accent-red-600"></td></tr>`;
       }).join('') || '<tr><td colspan="6" class="p-6 text-center text-ink-muted">لا توجد أيام تشغيل قادمة.</td></tr>';
