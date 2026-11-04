@@ -407,11 +407,13 @@ async function validateBooking(body) {
     if (!isDate(birth_date)) errors.push(`أدخل تاريخ ميلاد المسافر ${i + 1}`);
     else if (birth_date > today()) errors.push(`تاريخ ميلاد المسافر ${i + 1} غير صالح`);
     else {
-      const age = ageOn(birth_date, firstTravel);
-      if (age > 120) errors.push(`تاريخ ميلاد المسافر ${i + 1} غير صالح`);
-      else if (type === 'adult' && age < 12) errors.push(`المسافر ${i + 1} مسجّل بالغاً لكن عمره أقل من 12 سنة يوم الرحلة`);
-      else if (type === 'child' && (age < 2 || age >= 12)) errors.push(`المسافر ${i + 1} مسجّل طفلاً — عمر الطفل من 2 إلى 11 سنة يوم الرحلة`);
-      else if (type === 'infant' && ageOn(birth_date, lastTravel) >= 2) errors.push(`المسافر ${i + 1} مسجّل رضيعاً — لازم يكون أقل من سنتين طوال الرحلة`);
+      // رضيع: أقل من سنتين حتى آخر رحلة · طفل: من سنتين وحتى أقل من 12 · بالغ: 12 فأكثر يوم الإقلاع
+      const ageFirst = ageOn(birth_date, firstTravel), ageLast = ageOn(birth_date, lastTravel);
+      if (ageFirst > 120) errors.push(`تاريخ ميلاد المسافر ${i + 1} غير صالح`);
+      else if (type === 'infant' && ageLast >= 2) errors.push(`المسافر ${i + 1} مسجّل رضيعاً — الرضيع لازم يكون عمره أقل من سنتين يوم الرحلة`);
+      else if (type === 'child' && ageLast < 2) errors.push(`المسافر ${i + 1} مسجّل طفلاً لكن عمره أقل من سنتين — سجّله رضيعاً`);
+      else if (type === 'child' && ageFirst >= 12) errors.push(`المسافر ${i + 1} مسجّل طفلاً — عمر الطفل من سنتين وحتى أقل من 12 سنة يوم الرحلة`);
+      else if (type === 'adult' && ageFirst < 12) errors.push(`المسافر ${i + 1} مسجّل بالغاً لكن عمره أقل من 12 سنة يوم الرحلة`);
     }
     if (fullName.length > 60 || !NAME_RE.test(fullName)) errors.push(`اسم المسافر ${i + 1}: اكتب الاسم واللقب بالحروف الإنجليزية كما في الجواز`);
     if (!PASSPORT_RE.test(passport)) errors.push(`رقم جواز المسافر ${i + 1} غير صالح (6–9 حروف وأرقام إنجليزية)`);
