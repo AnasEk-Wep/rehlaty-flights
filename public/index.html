@@ -222,7 +222,7 @@
   .glass label.gfield:has(> input[type=date]) { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding-top: 12px; padding-bottom: 12px; }
   .glass label.gfield > input[type=date] {
     position: static; inset: auto; display: block; width: 100%; height: 28px; min-height: 28px; margin: 0; padding: 0;
-    line-height: 28px; text-align: right; direction: ltr; -webkit-appearance: none; appearance: none; background: transparent; }
+    line-height: 28px; text-align: right; direction: rtl; -webkit-appearance: none; appearance: none; background: transparent; }
   .glass label.gfield > input[type=date]::-webkit-date-and-time-value { text-align: right; margin: 0; min-height: 28px; line-height: 28px; }
   .glass label.gfield > input[type=date]::-webkit-datetime-edit { padding: 0; line-height: 28px; }
   .glass .trip-tab { min-height: 44px; }
@@ -296,6 +296,14 @@
   html.theme-anim *, html.theme-anim *::before, html.theme-anim *::after { transition: background-color .25s ease, border-color .25s ease, color .2s ease !important; }
   body { overflow-x: clip; } /* لا تمرير أفقي على الجوال مهما حدث */
   input[type=date]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .7; }
+  /* حقول التاريخ تُقرأ من اليمين لليسار (يوم/شهر/سنة) وبحروف عربية سليمة في متصفحات اللغة العربية */
+  input[type=date] { direction: rtl; text-align: right; unicode-bidi: isolate; }
+  /* نص بديل عربي سليم داخل حقول التاريخ الفارغة (بدل نص المتصفح الذي يظهر مقلوباً في بعض نسخ كروم) */
+  #paxFields input[type=date] { height: 50px; }
+  #paxFields input[type=date].is-empty:not(:focus)::-webkit-datetime-edit { color: transparent; }
+  .date-ph { display: block; height: 50px; margin-top: -50px; padding: 0 46px 0 16px; line-height: 50px; text-align: right; direction: rtl;
+    color: rgb(var(--ink-subtle)); font-size: 15px; pointer-events: none; position: relative; z-index: 1; }
+  .date-ph[hidden] { display: none !important; }
   html.dark input[type=date]::-webkit-calendar-picker-indicator { filter: invert(1); }
   /* درج الفلترة السفلي على الجوال */
   @media (max-width: 1023.98px) {
@@ -1280,7 +1288,7 @@ function openModal() {
   $('#mForm').hidden = false; $('#mSuccess').hidden = true;
   goStep(1);
   $$('#paxFields [data-f="expiry"]').forEach(i => { i.min = CFG.today; });
-  $$('#paxFields [data-f="dob"]').forEach(i => { i.max = CFG.today; i.min = addMonthsISO(CFG.today, -1440); });
+  $$('#paxFields [data-f="dob"]').forEach(i => { const b = dobBounds(i.closest('.pax').dataset.type); i.min = b.min; i.max = b.max; });
   holdSeats(); // قفل المقاعد 10 دقائق
   modal.classList.remove('hidden'); modal.classList.add('flex');
   document.body.style.overflow = 'hidden';
@@ -1465,16 +1473,25 @@ function expiryCheck(input) {
 }
 // تاريخ الميلاد: إلزامي، ويطابق فئة المسافر (بالغ 12+ · طفل 2–11 · رضيع أقل من سنتين طوال الرحلة)
 // (ageOn معرّفة أعلاه وتُستخدم هنا)
+// حدود تاريخ الميلاد لكل فئة (معيار شركات الطيران):
+//   رضيع: أقل من سنتين طوال الرحلة (حتى آخر رحلة) · طفل: من سنتين وحتى أقل من 12 · بالغ: 12 سنة فأكثر يوم الإقلاع
+function dobBounds(type) {
+  const first = legs()[0].depart_date, last = lastDate(), minISO = (a, b) => (a < b ? a : b);
+  if (type === 'infant') return { min: addDays(addMonthsISO(last, -24), 1), max: CFG.today };
+  if (type === 'child') return { min: addDays(addMonthsISO(first, -144), 1), max: minISO(CFG.today, addMonthsISO(last, -24)) };
+  return { min: addMonthsISO(CFG.today, -1440), max: minISO(CFG.today, addMonthsISO(first, -144)) };
+}
 function dobCheck(input) {
   const v = input.value, type = input.closest('.pax').dataset.type;
   if (!v) return 'أدخل تاريخ الميلاد';
   if (v > CFG.today) return 'تاريخ الميلاد لا يمكن أن يكون في المستقبل';
-  const age = ageOn(v, legs()[0].depart_date);
-  if (age > 120) return 'تاريخ الميلاد غير صالح';
-  if (type === 'adult' && age < 12) return 'عمره أقل من 12 سنة يوم الرحلة — غيّر عدد الركاب واختره «طفل»';
-  if (type === 'child' && age >= 12) return 'عمره 12 سنة أو أكثر يوم الرحلة — اختره «بالغ» في عدد الركاب';
-  if (type === 'child' && age < 2) return 'عمره أقل من سنتين — اختره «رضيع» في عدد الركاب';
-  if (type === 'infant' && ageOn(v, lastDate()) >= 2) return 'الرضيع لازم يكون أقل من سنتين طوال الرحلة — اختره «طفل»';
+  const first = legs()[0].depart_date, last = lastDate();
+  const ageFirst = ageOn(v, first), ageLast = ageOn(v, last);
+  if (ageFirst > 120) return 'تاريخ الميلاد غير صالح';
+  if (type === 'infant' && ageLast >= 2) return 'الرضيع لازم يكون عمره أقل من سنتين يوم الرحلة — إذا كان عمره سنتين أو أكثر اختره «طفل» في عدد الركاب';
+  if (type === 'child' && ageLast < 2) return 'عمره أقل من سنتين يوم الرحلة — اختره «رضيع» في عدد الركاب';
+  if (type === 'child' && ageFirst >= 12) return 'عمره 12 سنة أو أكثر يوم الرحلة — اختره «بالغ» في عدد الركاب';
+  if (type === 'adult' && ageFirst < 12) return 'عمره أقل من 12 سنة يوم الرحلة — اختره «طفل» في عدد الركاب';
   return null;
 }
 // تنسيق فوري أثناء الكتابة
@@ -1826,7 +1843,22 @@ if (trackParam) { const t = setInterval(() => { if (CFG) { clearInterval(t); ope
       if (next) { e.preventDefault(); next.focus(); }
     });
   }
-  // 3) زر واتساب العائم يختفي أثناء التمرير على الجوال ويرجع بعد التوقف
+  // 3) حقول تاريخ الميلاد وانتهاء الجواز: نص «يوم / شهر / سنة» عربي سليم ما دام الحقل فارغاً
+  const pf = document.getElementById('paxFields');
+  if (pf) {
+    const sync = i => { const ph = i.nextElementSibling; const empty = !i.value; i.classList.toggle('is-empty', empty); if (ph && ph.classList.contains('date-ph')) ph.hidden = !empty || document.activeElement === i; };
+    const decorate = () => pf.querySelectorAll('input[type=date]').forEach(i => {
+      if (!(i.nextElementSibling && i.nextElementSibling.classList.contains('date-ph'))) {
+        const ph = document.createElement('span'); ph.className = 'date-ph'; ph.setAttribute('aria-hidden', 'true'); ph.textContent = 'يوم / شهر / سنة';
+        i.insertAdjacentElement('afterend', ph);
+      }
+      sync(i);
+    });
+    new MutationObserver(decorate).observe(pf, { childList: true });
+    ['input', 'change', 'focusin', 'focusout'].forEach(ev => pf.addEventListener(ev, e => { if (e.target.matches('input[type=date]')) setTimeout(() => sync(e.target), 0); }));
+    document.getElementById('bookingForm').addEventListener('reset', () => setTimeout(decorate, 0));
+  }
+  // 4) زر واتساب العائم يختفي أثناء التمرير على الجوال ويرجع بعد التوقف
   const wa = document.getElementById('waFloat'); let t = null;
   if (wa && matchMedia('(max-width: 639.98px)').matches) addEventListener('scroll', () => {
     wa.classList.add('wa-away'); clearTimeout(t); t = setTimeout(() => wa.classList.remove('wa-away'), 900);
