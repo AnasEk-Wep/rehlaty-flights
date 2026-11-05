@@ -835,7 +835,7 @@ app.get('/api/bookings/export.csv', requireAdmin, ah(async (req, res) => {
   const head = ['رقم الحجز', 'تاريخ الحجز', 'وقت الحجز', 'نوع الرحلة', 'شركة الطيران', 'رقم الرحلة', 'من', 'إلى',
     'تاريخ الذهاب', 'وقت الذهاب', 'تاريخ العودة', 'بالغين', 'أطفال', 'رضّع', 'أسماء المسافرين', 'أرقام الجوازات', 'انتهاء الجوازات', 'تواريخ الميلاد',
     'هاتف التواصل', 'البريد', 'طريقة الدفع', 'مرجع الدفع', 'هاتف المحفظة', 'حالة الدفع', 'حالة الحجز', 'تاريخ الدفع',
-    'سعر التذاكر', 'الضرائب', 'رسوم الخدمة', 'رسوم التحصيل', 'الإجمالي (د.ل)'];
+    'سعر التذاكر', 'الضرائب', 'رسوم الخدمة', 'رسوم التحصيل', 'الإجمالي (د.ل)', 'PNR / رقم التذكرة', 'ملاحظات'];
   // نمنع Excel من تنفيذ خلية تبدأ بـ = + - @ (حماية من حقن الصيغ)
   const cell = v => {
     let s = String(v ?? '');
@@ -856,7 +856,7 @@ app.get('/api/bookings/export.csv', requireAdmin, ah(async (req, res) => {
       pax.map(p => p.fullName).join(' | '), pax.map(p => p.passport).join(' | '), pax.map(p => p.passport_expiry || '').join(' | '), pax.map(p => p.birth_date || '').join(' | '),
       b.contact_phone, b.email, PAY_AR[b.payment_method] || b.payment_method, b.payment_ref || '', b.phone || '',
       PAY_ST_AR[b.status] || b.status, BOOK_ST_AR[b.booking_status] || b.booking_status, local(b.paid_at)[0],
-      b.fare_total, b.taxes, b.service_fee, b.cod_fee || 0, b.total].map(cell).join(',');
+      b.fare_total, b.taxes, b.service_fee, b.cod_fee || 0, b.total, b.pnr || '', b.notes || ''].map(cell).join(',');
   });
   const stamp = local(now())[0];
   res.set({
@@ -890,6 +890,23 @@ app.patch('/api/bookings/:ref/status', requireAdmin, ah(async (req, res) => {
     console.error(e);
     res.status(500).json({ error: 'حدث خطأ في السيرفر' });
   }
+}));
+
+// ---------- PNR / رقم التذكرة + ملاحظات داخلية (لا تظهر للزبون) ----------
+app.patch('/api/bookings/:ref/meta', requireAdmin, ah(async (req, res) => {
+  const b = req.body || {};
+  const pnr = toAsciiDigits(b.pnr ?? '').toUpperCase().replace(/[^A-Z0-9 ,\/-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  const notes = String(b.notes ?? '').replace(/[<>\u0000-\u0009\u000B-\u001F\u007F]/g, '').trim().slice(0, 500);
+  await withBookingLock(async () => {
+    const booking = await store.findBooking(String(req.params.ref || '').toUpperCase());
+    if (!booking) return res.status(404).json({ error: 'الحجز غير موجود' });
+    if (b.pnr !== undefined) booking.pnr = pnr;
+    if (b.notes !== undefined) booking.notes = notes;
+    booking.updated_at = now();
+    await store.replaceBooking(booking);
+    console.log(`[meta] ${booking.ref} · pnr=${booking.pnr || '-'}`);
+    res.json({ booking });
+  });
 }));
 
 // ---------- حذف نهائي (الإدارة فقط) ----------
