@@ -268,6 +268,11 @@
   .pay-field + .pay-field { border-top: 1px solid rgb(var(--line)); }
   .pay-field b { overflow-wrap: anywhere; }
 
+  /* ===== رمز QR ===== */
+  .qr-box { background: #fff; border-radius: 12px; padding: 6px; box-shadow: inset 0 0 0 1px rgba(17,24,39,.08); }
+  .qr-box svg { display: block; width: 100%; height: 100%; }
+  @media print { .qr-box { box-shadow: none; } }
+
   /* ===== أزرار الترتيب ===== */
   #sortTabs [aria-selected="true"] { background: linear-gradient(90deg, rgba(2,132,199,.22), rgba(37,99,235,.18)) !important; color: #7DD3FC !important; box-shadow: inset 0 0 0 1px rgba(56,189,248,.35); }
   html:not(.dark) #sortTabs [aria-selected="true"] { color: #1D4ED8 !important; }
@@ -808,9 +813,14 @@
           <div class="flex justify-between"><span class="text-ink-muted">طريقة الدفع</span><span id="mPay" class="font-semibold"></span></div>
           <div class="flex items-baseline justify-between border-t border-line pt-3"><span class="text-ink-muted">الإجمالي</span><span id="mTotal" class="font-num text-xl font-bold"></span></div>
         </div>
+        <div id="mQrBox" hidden class="flex items-center gap-4 border-t-2 border-dashed border-line px-5 py-4">
+          <div id="mQr" class="qr-box h-[104px] w-[104px] shrink-0" role="img" aria-label="رمز QR لمتابعة الحجز"></div>
+          <div class="text-right text-xs leading-relaxed text-ink-muted"><b class="mb-1 block text-sm text-ink">امسح الرمز بكاميرا الهاتف</b>يفتح صفحة «تتبّع حجزي» ويعرض حالة حجزك مباشرة.</div>
+        </div>
       </div>
 
       <div class="mx-auto mt-4 flex max-w-md flex-col gap-2 sm:flex-row">
+        <button type="button" id="saveImgBtn" class="save-img flex flex-1 items-center justify-center gap-2 rounded-xl border border-line px-5 py-3 text-sm font-semibold transition hover:border-gold-500/50"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>حفظ كصورة</button>
         <button type="button" id="trackFromSuccess" class="flex-1 rounded-xl border border-line px-5 py-3 text-sm font-semibold transition hover:border-gold-500/50">تتبّع حجزي</button>
         <button type="button" data-close class="btn-ghost flex-1">إغلاق</button>
       </div>
@@ -1733,7 +1743,7 @@ function showSuccess(b, m, passengers) {
   $('#mForm').hidden = true; $('#mSuccess').hidden = false;
   goStep(3);
   try { localStorage.setItem('tkr_last', JSON.stringify({ ref: b.ref, phone: $('#contactPhone').value })); } catch {}
-  window.dispatchEvent(new CustomEvent('booking:success', { detail: { b, m } })); // نافذة «إتمام الدفع»
+  window.dispatchEvent(new CustomEvent('booking:success', { detail: { b, m, passengers, legs: legs() } })); // نافذة «إتمام الدفع» + رمز QR
 }
 $('#copyRef').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText($('#mRef').textContent); $('#copyRef').textContent = 'تم النسخ ✓'; }
@@ -2053,6 +2063,175 @@ if (trackParam) { const t = setInterval(() => { if (CFG) { clearInterval(t); ope
     btn.onclick = () => open({ ref: b.ref, tx: b.payment_ref || '', total: b.total, method: b.payment_method });
     box.prepend(btn);
   });
+})();
+</script>
+<script>
+// ===== رمز QR للتتبّع + «حفظ كصورة» (يُولَّد على جهاز الزبون — بدون أي خدمة خارجية) =====
+(function () {
+  const $1 = s => document.querySelector(s);
+  let qrLib = null;
+  const loadQr = () => qrLib || (qrLib = new Promise((ok, bad) => {
+    if (window.qrcode) return ok(window.qrcode);
+    const s = document.createElement('script'); s.src = '/vendor/qrcode-generator.js'; s.async = true;
+    s.onload = () => ok(window.qrcode); s.onerror = () => { qrLib = null; bad(new Error('qr')); }; document.head.appendChild(s);
+  }));
+  // تحميل مسبق هادئ بعد فتح الصفحة حتى يكون الرمز فورياً عند الحجز
+  addEventListener('load', () => setTimeout(() => loadQr().catch(() => {}), 2500));
+  const trackUrl = (ref, tok) => `${location.origin}/?track=${encodeURIComponent(ref)}${tok ? '&t=' + encodeURIComponent(tok) : ''}`;
+  async function makeQr(text) { const q = (await loadQr())(0, 'M'); q.addData(text); q.make(); return q; }
+  async function renderQr(el, text) {
+    try { const q = await makeQr(text); el.innerHTML = q.createSvgTag({ cellSize: 4, margin: 1, scalable: true }); return true; }
+    catch (e) { return false; }
+  }
+
+  // ---------- رسم التذكرة كصورة (Canvas — يحافظ على تشكيل الحروف العربية) ----------
+  const FONT_D = '"Readex Pro", "IBM Plex Sans Arabic", system-ui, sans-serif';
+  const FONT_T = '"IBM Plex Sans Arabic", system-ui, sans-serif';
+  async function fontsReady() {
+    try { await Promise.all(['700 48px "Readex Pro"', '500 30px "Readex Pro"', '400 28px "IBM Plex Sans Arabic"', '600 28px "IBM Plex Sans Arabic"'].map(f => document.fonts.load(f, 'أب AB 12'))); } catch (e) {}
+  }
+  function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function fit(ctx, text, max, font, size) { let s = size; do { ctx.font = font.replace('{s}', s); } while (ctx.measureText(text).width > max && --s > 12); return s; }
+  const ar = (iso, o) => new Date(iso + 'T12:00:00Z').toLocaleDateString('ar-LY', { timeZone: 'UTC', ...o });
+
+  async function ticketCanvas(T) {
+    await fontsReady();
+    const W = 1080, P = 64, qrSize = 300;
+    const rows = T.passengers.length;
+    const H = 520 + T.legs.length * 250 + 90 + rows * 56 + 260 + qrSize + 120;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d'); x.direction = 'rtl'; x.textBaseline = 'alphabetic';
+    // خلفية + بطاقة
+    x.fillStyle = '#EEF1F6'; x.fillRect(0, 0, W, H);
+    x.save(); x.shadowColor = 'rgba(17,24,39,.12)'; x.shadowBlur = 40; x.shadowOffsetY = 12; rr(x, 32, 32, W - 64, H - 64, 44); x.fillStyle = '#fff'; x.fill(); x.restore();
+    // رأس أزرق
+    x.save(); rr(x, 32, 32, W - 64, 300, 44); x.clip(); x.fillStyle = '#2563EB'; x.fillRect(32, 32, W - 64, 300);
+    x.fillStyle = 'rgba(255,255,255,.08)'; x.beginPath(); x.arc(160, 80, 220, 0, 7); x.fill(); x.restore();
+    x.fillStyle = '#fff'; x.textAlign = 'right';
+    fit(x, T.site, W - 2 * P - 40, '700 {s}px ' + FONT_D, 46); x.fillText(T.site, W - P - 20, 120);
+    x.font = '400 28px ' + FONT_T; x.fillStyle = 'rgba(255,255,255,.85)'; x.fillText('ملخص الحجز — احتفظ به', W - P - 20, 168);
+    x.textAlign = 'left'; x.font = '500 24px ' + FONT_T; x.fillStyle = 'rgba(255,255,255,.8)'; x.fillText('رقم الحجز', P + 20, 230);
+    x.direction = 'ltr'; x.font = '700 54px ' + FONT_D; x.fillStyle = '#fff'; x.fillText(T.ref, P + 20, 290); x.direction = 'rtl';
+    x.textAlign = 'right'; x.font = '600 26px ' + FONT_T; x.fillStyle = '#fff'; x.fillText(T.status, W - P - 20, 290);
+    let y = 400;
+    // الرحلات
+    for (const L of T.legs) {
+      x.textAlign = 'right'; x.font = '600 26px ' + FONT_T; x.fillStyle = '#64748B';
+      x.fillText(`${L.label} · ${ar(L.depart_date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`, W - P - 20, y);
+      y += 92;
+      x.direction = 'ltr'; x.font = '700 76px ' + FONT_D; x.fillStyle = '#0F172A';
+      x.textAlign = 'right'; x.fillText(L.origin, W - P - 20, y); x.textAlign = 'left'; x.fillText(L.destination, P + 20, y);
+      x.font = '600 36px ' + FONT_D; x.fillStyle = '#1D4ED8';
+      x.textAlign = 'right'; x.fillText(L.depart_time || '', W - P - 20, y + 54); x.textAlign = 'left'; x.fillText(L.arrive_time || '', P + 20, y + 54);
+      x.direction = 'rtl';
+      // خط المسار + طائرة
+      const cx = W / 2; x.strokeStyle = '#CBD5E1'; x.lineWidth = 3; x.setLineDash([10, 12]); x.beginPath(); x.moveTo(P + 250, y - 26); x.lineTo(W - P - 250, y - 26); x.stroke(); x.setLineDash([]);
+      x.fillStyle = '#2563EB'; x.beginPath(); x.arc(cx, y - 26, 30, 0, 7); x.fill();
+      x.save(); x.translate(cx, y - 26); x.rotate(-Math.PI / 2); x.fillStyle = '#fff'; x.scale(1.6, 1.6);
+      x.fill(new Path2D('M9 4v-1l-4-2.5V-2a.75.75 0 0 0-1.5 0V.5L-.5 3v1l4-1.25V5.5l-1 .75V7l1.75-.5L6 7v-.75l-1-.75V2.75z')); x.restore();
+      x.textAlign = 'right'; x.font = '400 26px ' + FONT_T; x.fillStyle = '#64748B';
+      x.fillText(L.originCity || '', W - P - 20, y + 96); x.textAlign = 'left'; x.fillText(L.destCity || '', P + 20, y + 96);
+      x.textAlign = 'center'; x.font = '500 24px ' + FONT_T; x.fillText([L.airline, L.flight_no].filter(Boolean).join(' · '), cx, y + 30);
+      y += 158;
+    }
+    // فاصل تذكرة
+    x.strokeStyle = '#E2E8F0'; x.lineWidth = 3; x.setLineDash([14, 12]); x.beginPath(); x.moveTo(P, y); x.lineTo(W - P, y); x.stroke(); x.setLineDash([]);
+    x.fillStyle = '#EEF1F6'; x.beginPath(); x.arc(32, y, 26, 0, 7); x.fill(); x.beginPath(); x.arc(W - 32, y, 26, 0, 7); x.fill();
+    y += 70;
+    x.textAlign = 'right'; x.font = '600 28px ' + FONT_T; x.fillStyle = '#0F172A'; x.fillText(`المسافرون (${rows})`, W - P - 20, y); y += 18;
+    for (const p of T.passengers) {
+      y += 52; x.direction = 'ltr'; x.textAlign = 'right'; x.font = '600 30px ' + FONT_D; x.fillStyle = '#0F172A';
+      fit(x, p.name, W - 2 * P - 220, '600 {s}px ' + FONT_D, 30); x.fillText(p.name, W - P - 20, y); x.direction = 'rtl';
+      x.textAlign = 'left'; x.font = '400 26px ' + FONT_T; x.fillStyle = '#64748B'; x.fillText(p.type, P + 20, y);
+    }
+    y += 50;
+    rr(x, P, y, W - 2 * P, 150, 24); x.fillStyle = '#F8FAFC'; x.fill();
+    x.textAlign = 'right'; x.font = '400 26px ' + FONT_T; x.fillStyle = '#64748B'; x.fillText('طريقة الدفع', W - P - 30, y + 56); x.fillText('الإجمالي', W - P - 30, y + 116);
+    x.textAlign = 'left'; x.font = '600 28px ' + FONT_T; x.fillStyle = '#0F172A'; x.fillText(T.pay, P + 30, y + 56);
+    x.font = '700 40px ' + FONT_D; x.fillText(T.total, P + 30, y + 120);
+    y += 200;
+    // QR
+    try {
+      const q = await makeQr(trackUrl(T.ref, T.token)), n = q.getModuleCount(), cell = Math.floor(qrSize / (n + 2)), size = cell * (n + 2);
+      const qx = (W - size) / 2; x.fillStyle = '#fff'; x.fillRect(qx, y, size, size); x.fillStyle = '#0F172A';
+      for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) x.fillRect(qx + (k + 1) * cell, y + (r + 1) * cell, cell, cell);
+      y += size + 46;
+      x.textAlign = 'center'; x.font = '500 26px ' + FONT_T; x.fillStyle = '#475569'; x.fillText('امسح الرمز لمتابعة حالة الحجز', W / 2, y);
+    } catch (e) { y += 20; }
+    x.textAlign = 'center'; x.font = '400 22px ' + FONT_T; x.fillStyle = '#94A3B8';
+    x.fillText('هذا ملخص حجز وليس بطاقة صعود رسمية — تصدر التذكرة من المكتب بعد التأكيد والدفع.', W / 2, H - 70);
+    return c;
+  }
+  async function saveTicket(T, btn) {
+    const old = btn ? btn.innerHTML : ''; if (btn) { btn.disabled = true; btn.textContent = 'جارٍ التجهيز…'; }
+    try {
+      const c = await ticketCanvas(T);
+      const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      const name = `booking-${T.ref}.png`, file = new File([blob], name, { type: 'image/png' });
+      const touch = matchMedia('(pointer: coarse)').matches;
+      if (touch && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: `حجز ${T.ref}` }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+      }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    } catch (e) { alert('تعذر حفظ الصورة، جرّب لقطة شاشة'); }
+    finally { if (btn) { btn.disabled = false; btn.innerHTML = old; } }
+  }
+  const cityOf = c => (typeof CFG !== 'undefined' && CFG && CFG.airports && CFG.airports[c] && CFG.airports[c].city) || '';
+  const legOf = (f, label) => ({ label, origin: f.origin, destination: f.destination, depart_date: f.depart_date, depart_time: f.depart_time, arrive_time: f.arrive_time,
+    airline: f.airline, flight_no: f.flight_no, originCity: cityOf(f.origin), destCity: cityOf(f.destination) });
+  const PT = { adult: 'بالغ', child: 'طفل', infant: 'رضيع' };
+  const site = () => (typeof siteName === 'function' ? siteName() : document.title);
+  const money = n => `${Number(n || 0).toLocaleString('en-US')} د.ل`;
+
+  // ---------- شاشة التأكيد بعد الحجز ----------
+  let SUCCESS = null;
+  window.addEventListener('booking:success', async e => {
+    const { b, m, passengers = [], legs = [] } = e.detail || {};
+    SUCCESS = { ref: b.ref, token: b.track_token || '', site: site(), status: 'بانتظار تأكيد المكتب', pay: (typeof PAY_NAMES !== 'undefined' && PAY_NAMES[m]) || m, total: money(b.total),
+      legs: legs.map((f, i) => legOf(f, legs.length > 1 ? (i ? 'العودة' : 'الذهاب') : 'الرحلة')), passengers: passengers.map(p => ({ name: (p.fullName || '').trim(), type: PT[p.type] || 'بالغ' })) };
+    const box = $1('#mQrBox'); box.hidden = true;
+    if (await renderQr($1('#mQr'), trackUrl(b.ref, b.track_token))) box.hidden = false;
+    fontsReady();
+  });
+  $1('#saveImgBtn').addEventListener('click', e => { if (SUCCESS) saveTicket(SUCCESS, e.currentTarget); });
+
+  // ---------- «تتبّع حجزي» + الطباعة ----------
+  window.addEventListener('booking:tracked', async e => {
+    const b = e.detail || {}; const res = $1('#tResult'); if (!res) return;
+    const status = b.booking_status === 'cancelled' ? 'ملغي' : b.booking_status === 'confirmed' ? 'تم التأكيد' : 'بانتظار تأكيد المكتب';
+    const T = { ref: b.ref, token: b.track_token || '', site: site(), status, pay: (typeof PAY_NAMES !== 'undefined' && PAY_NAMES[b.payment_method]) || b.payment_method || '', total: money(b.total),
+      legs: [legOf(b.outbound, b.return ? 'الذهاب' : 'الرحلة'), ...(b.return ? [legOf(b.return, 'العودة')] : [])], passengers: (b.passengers || []).map(p => ({ name: p.fullName, type: PT[p.type] || 'بالغ' })) };
+    const actions = res.querySelector('.no-print');
+    if (b.track_token && actions) {
+      const card = document.createElement('div');
+      card.className = 'flex items-center gap-4 rounded-xl border border-line p-4';
+      card.innerHTML = '<div class="qr-box h-[96px] w-[96px] shrink-0" role="img" aria-label="رمز QR لمتابعة الحجز"></div><div class="text-xs leading-relaxed text-ink-muted"><b class="mb-1 block text-sm text-ink">رمز متابعة الحجز</b>امسحه بكاميرا الهاتف لفتح هذه الصفحة مباشرة.</div>';
+      actions.parentNode.insertBefore(card, actions);
+      if (!(await renderQr(card.firstElementChild, trackUrl(b.ref, b.track_token)))) card.remove();
+    }
+    if (actions) {
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'save-img flex items-center justify-center gap-2 rounded-xl border border-line px-5 py-3 text-sm font-semibold transition hover:border-brand-500';
+      btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>حفظ كصورة';
+      btn.onclick = () => saveTicket(T, btn);
+      const print = actions.querySelector('#tPrint'); print ? print.after(btn) : actions.append(btn);
+    }
+  });
+
+  // ---------- فتح التتبّع من رمز QR: /?track=TKR-XXXXXX&t=رمز ----------
+  const qs = new URLSearchParams(location.search), qRef = (qs.get('track') || '').toUpperCase(), qTok = qs.get('t');
+  if (qRef && qTok) {
+    const go = setInterval(async () => {
+      if (typeof CFG === 'undefined' || !CFG || document.getElementById('trackModal').classList.contains('hidden')) return;
+      clearInterval(go);
+      const box = $1('#tResult'); box.innerHTML = '<div class="h-40 animate-pulse rounded-2xl bg-canvas"></div>';
+      try {
+        const r = await fetch(`/api/track?${new URLSearchParams({ ref: qRef, t: qTok })}`, { cache: 'no-store' }); const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'تعذر فتح الحجز');
+        $1('#tErr').hidden = true; showTracked(j.booking);
+      } catch (err) { box.innerHTML = ''; $1('#tErr').textContent = err.message + ' — أدخل رقم الهاتف للمتابعة.'; $1('#tErr').hidden = false; $1('#tPhone').focus(); }
+    }, 120);
+  }
 })();
 </script>
 </body>
