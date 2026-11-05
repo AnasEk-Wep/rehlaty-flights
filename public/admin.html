@@ -231,7 +231,7 @@
 
 <!-- ================= الإعدادات ================= -->
 <div id="settingsModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-navy-900/60 p-4" role="dialog" aria-modal="true" aria-labelledby="setTitle">
-  <form id="settingsForm" class="w-full max-w-md rounded-2xl bg-white p-6 shadow-card" novalidate>
+  <form id="settingsForm" class="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-card" novalidate>
     <div class="mb-4 flex items-center justify-between">
       <h2 id="setTitle" class="text-xl font-bold">إعدادات المكتب</h2>
       <button type="button" data-set-close class="text-2xl leading-none text-ink-muted" aria-label="إغلاق">×</button>
@@ -249,6 +249,36 @@
     </label>
     <p class="mt-2 text-xs leading-relaxed text-ink-muted">يظهر للزبائن في زر «مراسلة عبر واتساب» بعد الحجز وفي زر التواصل. اتركه فارغاً ليعمل الزر كـ«مشاركة الحجز عبر واتساب» (يختار الزبون جهة الاتصال بنفسه).</p>
     <p id="waStatus" class="mt-3 rounded-lg bg-canvas p-3 text-sm"></p>
+
+    <!-- بيانات الدفع التي تظهر للزبون في نافذة «إتمام الدفع» -->
+    <div class="mt-6 border-t border-line pt-5">
+      <h3 class="text-base font-bold">بيانات الدفع للزبائن</h3>
+      <p class="mt-1 text-xs leading-relaxed text-ink-muted">تظهر للزبون في نافذة «إتمام الدفع» بعد الحجز مع زر نسخ لكل خانة، وتتحدّث فوراً بعد الحفظ. اترك أي وسيلة فارغة لإخفاء بياناتها.</p>
+      <fieldset class="mt-4 rounded-xl border border-line p-4">
+        <legend class="px-1 text-sm font-semibold">سداد</legend>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="block"><span class="mb-1 block text-xs font-semibold text-ink-muted">رقم التاجر / الحساب</span><input id="paySadadNo" dir="ltr" inputmode="numeric" maxlength="24" placeholder="مثال: 0912345678" class="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600 text-right tracking-wider"></label>
+          <label class="block"><span class="mb-1 block text-xs font-semibold text-ink-muted">اسم المستفيد</span><input id="paySadadName" maxlength="80" placeholder="اسم المكتب أو صاحب الحساب" class="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600"></label>
+        </div>
+      </fieldset>
+      <fieldset class="mt-3 rounded-xl border border-line p-4">
+        <legend class="px-1 text-sm font-semibold">تداول</legend>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="block"><span class="mb-1 block text-xs font-semibold text-ink-muted">رقم الحساب / المحفظة</span><input id="payTadawulNo" dir="ltr" inputmode="numeric" maxlength="24" placeholder="مثال: 0921234567" class="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600 text-right tracking-wider"></label>
+          <label class="block"><span class="mb-1 block text-xs font-semibold text-ink-muted">اسم المستفيد</span><input id="payTadawulName" maxlength="80" placeholder="اسم المكتب أو صاحب المحفظة" class="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600"></label>
+        </div>
+      </fieldset>
+      <fieldset class="mt-3 rounded-xl border border-line p-4">
+        <legend class="px-1 text-sm font-semibold">التحويل المصرفي</legend>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="block"><span class="mb-1 block text-xs font-semibold text-ink-muted">اسم المصرف</span><input id="payBankName" maxlength="80" placeholder="مثال: مصرف الجمهورية" class="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600"></label>
+          <label class="block"><span class="mb-1 block text-xs font-semibold text-ink-muted">اسم المستفيد</span><input id="payBankBenef" maxlength="80" placeholder="الاسم كما هو مسجّل في المصرف" class="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600"></label>
+          <label class="block"><span class="mb-1 block text-xs font-semibold text-ink-muted">رقم الحساب</span><input id="payBankAcc" dir="ltr" inputmode="numeric" maxlength="30" placeholder="أرقام فقط" class="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600 text-right tracking-wider"></label>
+          <label class="block sm:col-span-2"><span class="mb-1 block text-xs font-semibold text-ink-muted">رقم الآيبان (IBAN)</span><input id="payBankIban" dir="ltr" maxlength="40" autocapitalize="characters" spellcheck="false" placeholder="LY00 0000 0000 0000 0000 000" class="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600 text-right uppercase tracking-wider"></label>
+        </div>
+        <p class="mt-2 text-[11px] leading-relaxed text-ink-muted">يتحقق النظام من صحة الآيبان تلقائياً قبل الحفظ (الليبي يبدأ بـ LY ثم 23 رقماً).</p>
+      </fieldset>
+    </div>
     <p id="setErr" class="mt-2 hidden text-xs text-red-600"></p>
     <div class="mt-5 flex flex-wrap items-center justify-between gap-2">
       <a id="waTest" href="#" target="_blank" rel="noopener" class="hidden text-sm font-semibold text-ok-700 hover:underline">اختبار الرقم على واتساب ↗</a>
@@ -274,7 +304,7 @@
   const utc = s => !s ? null : new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z'); // يقبل ISO أو صيغة SQLite
   const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('ar-LY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '—';
 
-  const PAY = { sadad: 'سداد', tadawul: 'تداول', cod: 'كاش عند الاستلام' };
+  const PAY = { sadad: 'سداد', tadawul: 'تداول', bank: 'تحويل مصرفي', cod: 'كاش عند الاستلام' };
   const PAY_STATUS = {
     pending_cod:     ['بانتظار الكاش', 'bg-accent-50 text-accent-600'],
     pending_payment: ['بانتظار الدفع', 'bg-accent-50 text-accent-600'],
@@ -366,7 +396,7 @@
         <td class="px-4 py-3 text-ink-muted">${d.toLocaleDateString('ar-LY')}<br><span class="text-xs">${d.toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' })}</span></td>
         <td class="px-4 py-3"><span class="font-semibold">${esc(b.airline)}</span><br><span class="whitespace-nowrap text-xs text-ink-muted" dir="ltr">${esc(b.origin)} ${esc(b.depart_time)} → ${esc(b.destination)} ${esc(b.arrive_time)}</span></td>
         <td class="px-4 py-3">${b.contact_phone ? `<div class="mb-1 text-xs font-semibold text-brand-700" dir="ltr">📞 ${esc(b.contact_phone)}</div>` : ''}${b.passengers.map(p => `<div>${esc(p.fullName)} <span class="text-xs text-ink-subtle" dir="ltr" title="${esc(p.passport)}">${esc(maskPassport(p.passport))}</span>${p.birth_date ? ` <span class="text-[11px] text-ink-subtle" title="تاريخ الميلاد">· 🎂 ${esc(p.birth_date)}</span>` : ''}${p.passport_expiry ? ` <span class="text-[11px] text-ink-subtle" title="انتهاء الجواز">· ⏳ ${esc(p.passport_expiry)}</span>` : ''}</div>`).join('')}</td>
-        <td class="px-4 py-3">${PAY[b.payment_method] || esc(b.payment_method)}${b.phone ? `<br><span class="text-xs text-ink-muted" dir="ltr">محفظة: ${esc(b.phone)}</span>` : ''}</td>
+        <td class="px-4 py-3">${PAY[b.payment_method] || esc(b.payment_method)}${b.payment_ref ? `<br><span class="text-[11px] text-ink-muted" dir="ltr" title="مرجع الدفع">${esc(b.payment_ref)}</span>` : ''}${b.phone ? `<br><span class="text-xs text-ink-muted" dir="ltr">محفظة: ${esc(b.phone)}</span>` : ''}</td>
         <td class="space-y-1 px-4 py-3">${badge(BOOKING_STATUS[b.booking_status] || [b.booking_status, 'bg-canvas'])}<br>${badge(cancelled && b.status === 'paid' ? ['مدفوع · يلزم استرداد', 'bg-red-50 text-red-700'] : (PAY_STATUS[b.status] || [b.status, 'bg-canvas']))}</td>
         <td class="px-4 py-3 font-bold">${fmt(b.total)} <span class="text-xs font-medium text-ink-muted">د.ل</span></td>
         <td class="px-4 py-3">${actionsFor(b)}</td>
@@ -481,6 +511,7 @@
             <div style="font-size:14px;font-weight:700;margin-bottom:6px">الدفع</div>
             <table style="width:100%">
               ${row('الطريقة', PAY[b.payment_method] || esc(b.payment_method))}
+              ${b.payment_ref ? row('مرجع الدفع', `<span dir="ltr">${esc(b.payment_ref)}</span>`) : ''}
               ${b.contact_phone ? row('هاتف التواصل', `<span dir="ltr">${esc(b.contact_phone)}</span>`) : ''}
               ${b.phone ? row('هاتف المحفظة', `<span dir="ltr">${esc(b.phone)}</span>`) : ''}
               ${row('الحالة', (PAY_STATUS[b.status] || [b.status])[0])}
@@ -537,20 +568,32 @@
   async function openSettings() {
     $('#setErr').classList.add('hidden');
     setModal.classList.remove('hidden'); setModal.classList.add('flex');
-    try { const st = await (await fetch('/api/settings', { cache: 'no-store' })).json(); $('#nameInput').value = st.site_name || ''; applySiteName(st.site_name); renderWa(st.whatsapp); }
+    try { const st = await (await fetch('/api/settings', { cache: 'no-store' })).json(); $('#nameInput').value = st.site_name || ''; applySiteName(st.site_name); renderWa(st.whatsapp); fillPayment(st.payment); }
     catch { $('#waStatus').textContent = 'تعذر قراءة الإعدادات'; }
     $('#waInput').focus();
   }
+  // ===== بيانات الدفع (سداد / تداول / تحويل مصرفي) =====
+  const PAY_FIELDS = [['paySadadNo', 'sadad', 'number'], ['paySadadName', 'sadad', 'name'], ['payTadawulNo', 'tadawul', 'number'], ['payTadawulName', 'tadawul', 'name'],
+    ['payBankName', 'bank', 'bank'], ['payBankBenef', 'bank', 'name'], ['payBankAcc', 'bank', 'account'], ['payBankIban', 'bank', 'iban']];
+  function fillPayment(p) { p = p || {}; PAY_FIELDS.forEach(([id, g, k]) => { $('#' + id).value = (p[g] && p[g][k]) || ''; }); }
+  function readPayment() {
+    const out = { sadad: {}, tadawul: {}, bank: {} };
+    PAY_FIELDS.forEach(([id, g, k]) => { out[g][k] = $('#' + id).value.replace(/[\u0660-\u0669]/g, d => d.charCodeAt(0) - 0x660).trim(); });
+    out.bank.iban = out.bank.iban.replace(/\s+/g, '').toUpperCase();
+    return out;
+  }
   const closeSettings = () => { setModal.classList.add('hidden'); setModal.classList.remove('flex'); };
-  async function saveWa(value, siteName) {
+  async function saveWa(value, siteName, payment) {
     $('#setErr').classList.add('hidden');
     $('#waSave').disabled = true;
     try {
       const body = { whatsapp: value };
       if (siteName !== undefined) body.site_name = siteName;
+      if (payment !== undefined) body.payment = payment;
       const st = await api('/api/settings', { method: 'PUT', body: JSON.stringify(body) });
       applySiteName(st.site_name);
       renderWa(st.whatsapp);
+      if (st.payment) fillPayment(st.payment);
       toast(siteName !== undefined ? 'تم حفظ الإعدادات' : 'تمت إزالة الرقم — الزر يعمل كمشاركة');
     } catch (err) {
       $('#setErr').textContent = err.message; $('#setErr').classList.remove('hidden');
@@ -566,7 +609,7 @@
     e.preventDefault();
     const name = $('#nameInput').value.trim();
     if (name.length < 2) { $('#setErr').textContent = 'أدخل اسم الموقع (حرفان على الأقل)'; $('#setErr').classList.remove('hidden'); $('#nameInput').focus(); return; }
-    saveWa($('#waInput').value.trim(), name);
+    saveWa($('#waInput').value.trim(), name, readPayment());
   });
 
   // ===== تصدير Excel (CSV) =====

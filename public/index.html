@@ -260,6 +260,14 @@
   html.dark #mRef { color: #93C5FD; }
   @media (max-width: 639.98px) { .success-ic { width: 64px; height: 64px; } .success-ic > span { width: 64px; height: 64px; } .success-ic svg { width: 30px; height: 30px; } }
 
+  /* ===== نافذة إتمام الدفع ===== */
+  .pay-tab { color: rgb(var(--ink-muted)); transition: background .2s, color .2s, box-shadow .2s; }
+  .pay-tab[aria-selected="true"] { background: rgb(var(--surface)); color: #1D4ED8; box-shadow: 0 1px 2px rgba(17,24,39,.08), 0 6px 14px -8px rgba(37,99,235,.45); }
+  html.dark .pay-tab[aria-selected="true"] { color: #93C5FD; }
+  .pay-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+  .pay-field + .pay-field { border-top: 1px solid rgb(var(--line)); }
+  .pay-field b { overflow-wrap: anywhere; }
+
   /* ===== أزرار الترتيب ===== */
   #sortTabs [aria-selected="true"] { background: linear-gradient(90deg, rgba(2,132,199,.22), rgba(37,99,235,.18)) !important; color: #7DD3FC !important; box-shadow: inset 0 0 0 1px rgba(56,189,248,.35); }
   html:not(.dark) #sortTabs [aria-selected="true"] { color: #1D4ED8 !important; }
@@ -711,7 +719,7 @@
           </div>
           <div>
             <h4 class="mb-3 text-sm font-semibold">طريقة الدفع</h4>
-            <div class="grid gap-3 sm:grid-cols-3">
+            <div class="grid gap-3 sm:grid-cols-2">
               <label class="pay-opt cursor-pointer rounded-2xl border border-line bg-canvas/40 p-3 sm:p-4 transition hover:border-gold-500/50 has-[:checked]:border-gold-500 has-[:checked]:bg-gold-500/[0.08] has-[:checked]:shadow-gold">
                 <input type="radio" name="pay" value="cod" class="sr-only">
                 <span class="pay-ic grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#0284C7] text-white"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg></span>
@@ -730,6 +738,12 @@
                 <span class="block text-sm font-semibold">تداول</span>
                 <span class="block text-xs text-ink-muted">محفظة إلكترونية</span>
               </label>
+              <label class="pay-opt cursor-pointer rounded-2xl border border-line bg-canvas/40 p-3 sm:p-4 transition hover:border-gold-500/50 has-[:checked]:border-gold-500 has-[:checked]:bg-gold-500/[0.08] has-[:checked]:shadow-gold">
+                <input type="radio" name="pay" value="bank" class="sr-only">
+                <span class="pay-ic grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#334155] text-white" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18L12 4z"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/></svg></span>
+                <span class="block text-sm font-semibold">تحويل مصرفي</span>
+                <span class="block text-xs text-ink-muted">إيداع أو تحويل برقم الحساب / الآيبان</span>
+              </label>
             </div>
             <p id="payErr" class="field-err" hidden>اختر طريقة الدفع</p>
           </div>
@@ -739,6 +753,7 @@
             <span class="field-err" hidden>رقم ليبي يبدأ بـ 091 إلى 095 (10 أرقام)</span>
             <span class="mt-1 block text-xs text-ink-subtle">سيتواصل معك المكتب لإتمام الدفع وتأكيده.</span>
           </label>
+          <p id="bankNote" hidden class="rounded-xl bg-brand-50 p-3 text-xs leading-relaxed text-brand-700">بعد تأكيد الحجز تظهر لك بيانات الحساب والآيبان مع زر نسخ. اكتب كود الحجز في خانة «البيان» عند التحويل.</p>
           <p id="codBox" hidden class="rounded-xl bg-accent-50 p-3 text-xs leading-relaxed text-accent-600">يُحجز مقعدك مؤقتاً، وسيتواصل معك المكتب لتحديد موعد الدفع واستلام التذكرة. تُضاف رسوم تحصيل بسيطة.</p>
           <label class="flex min-h-[48px] cursor-pointer items-start gap-3 rounded-2xl border border-line bg-canvas/40 p-3.5 text-sm transition has-[:checked]:border-brand-500/60 has-[:checked]:bg-brand-50/60">
             <input id="agree" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600">
@@ -766,7 +781,11 @@
       <h3 class="mt-4 text-[26px] font-bold leading-tight tracking-tight sm:mt-5 sm:text-h2">تم استلام حجزك!</h3>
       <p class="mt-1 text-sm text-ink-muted">خطوة أخيرة: أرسل الحجز للمكتب على واتساب ليتم تأكيده فوراً.</p>
 
-      <a id="waShare" href="#" target="_blank" rel="noopener" class="btn-wa mx-auto mt-5 flex min-h-[56px] w-full max-w-md py-4 text-base">
+      <button type="button" id="payOpenBtn" hidden class="btn-primary mx-auto mt-5 flex min-h-[56px] w-full max-w-md items-center justify-center gap-2 py-4 text-base">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20M6 15h4"/></svg>
+        عرض بيانات الدفع وإتمام التحويل
+      </button>
+      <a id="waShare" href="#" target="_blank" rel="noopener" class="btn-wa mx-auto mt-3 flex min-h-[56px] w-full max-w-md py-4 text-base">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm4.5 12.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>
         <span id="waLabel">تأكيد الحجز عبر واتساب المكتب 💬</span>
       </a>
@@ -794,6 +813,63 @@
       <div class="mx-auto mt-4 flex max-w-md flex-col gap-2 sm:flex-row">
         <button type="button" id="trackFromSuccess" class="flex-1 rounded-xl border border-line px-5 py-3 text-sm font-semibold transition hover:border-gold-500/50">تتبّع حجزي</button>
         <button type="button" data-close class="btn-ghost flex-1">إغلاق</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= PAYMENT MODAL (إتمام الدفع) ================= -->
+<div id="payModal" class="fixed inset-0 z-[55] hidden items-end justify-center bg-night-950/75 backdrop-blur-md sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="payTitle">
+  <div class="max-h-[94dvh] w-full max-w-xl overflow-y-auto rounded-t-[28px] border border-line bg-surface shadow-elevated sm:rounded-[28px]">
+    <div class="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface/95 px-5 py-4 backdrop-blur-xl sm:px-7">
+      <div class="flex items-center gap-3">
+        <span class="grid h-10 w-10 place-items-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB]" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20M6 15h4"/></svg></span>
+        <h3 id="payTitle" class="text-h3">إتمام الدفع</h3>
+      </div>
+      <button type="button" id="payClose" aria-label="إغلاق" class="grid h-10 w-10 place-items-center rounded-full text-ink-muted ring-1 ring-line transition hover:bg-canvas hover:text-ink">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="space-y-5 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-7">
+      <!-- ملخص مالي -->
+      <div class="overflow-hidden rounded-2xl border border-line">
+        <div class="bg-[#2563EB] px-5 py-4 text-white">
+          <p class="text-xs text-white/80">المبلغ المطلوب تحويله بالضبط</p>
+          <p class="mt-1 flex items-baseline gap-2"><span id="payAmount" class="font-num text-[34px] font-bold leading-none"></span><span class="text-sm font-semibold text-white/90">د.ل <span class="text-white/70">(LYD)</span></span></p>
+        </div>
+        <div class="divide-y divide-line text-sm">
+          <div class="flex items-center justify-between gap-3 px-5 py-3"><span class="text-ink-muted">كود الحجز</span><span class="flex items-center gap-2"><b id="payBookRef" dir="ltr" class="font-num tracking-wider text-[#1D4ED8]"></b><button type="button" class="pay-copy min-h-[36px] rounded-lg border border-line px-3 text-xs font-semibold text-ink-muted hover:text-ink" aria-label="نسخ كود الحجز">نسخ</button></span></div>
+          <div id="payTxRow" class="flex items-center justify-between gap-3 px-5 py-3"><span class="text-ink-muted">الرقم المرجعي للعملية</span><span class="flex items-center gap-2"><b id="payTxRef" dir="ltr" class="font-num whitespace-nowrap text-[13px] tracking-wide"></b><button type="button" class="pay-copy min-h-[36px] rounded-lg border border-line px-3 text-xs font-semibold text-ink-muted hover:text-ink" aria-label="نسخ الرقم المرجعي">نسخ</button></span></div>
+        </div>
+      </div>
+
+      <!-- تبويبات وسائل الدفع -->
+      <div>
+        <p class="mb-2 text-sm font-semibold">اختر وسيلة الدفع</p>
+        <div id="payTabs" role="tablist" aria-label="وسائل الدفع" class="grid grid-cols-3 gap-1 rounded-2xl bg-canvas p-1 text-sm font-semibold">
+          <button type="button" role="tab" value="sadad" class="pay-tab min-h-[44px] rounded-xl px-2">سداد</button>
+          <button type="button" role="tab" value="tadawul" class="pay-tab min-h-[44px] rounded-xl px-2">تداول</button>
+          <button type="button" role="tab" value="bank" class="pay-tab min-h-[44px] rounded-xl px-2">تحويل مصرفي</button>
+        </div>
+      </div>
+      <div id="payPanel" role="tabpanel" aria-live="polite"></div>
+
+      <!-- إرشادات الإيداع والمطابقة -->
+      <ol class="space-y-2.5 rounded-2xl border border-line bg-canvas/50 p-4 text-sm leading-relaxed">
+        <li class="flex gap-3"><span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#2563EB] text-xs font-bold text-white">1</span><span>حوّل <b>المبلغ المطلوب بالضبط</b> إلى البيانات أعلاه.</span></li>
+        <li class="flex gap-3"><span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#2563EB] text-xs font-bold text-white">2</span><span>اكتب <b>كود الحجز</b> <b id="payMemo" dir="ltr" class="font-num text-[#1D4ED8]"></b> في خانة <b>البيان / ملاحظات التحويل</b> حتى نطابق دفعتك بسرعة.</span></li>
+        <li class="flex gap-3"><span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#2563EB] text-xs font-bold text-white">3</span><span>صوّر الإيصال وأرسله لنا على واتساب — يتأكد الحجز بعد مطابقة التحويل من المكتب.</span></li>
+      </ol>
+      <a id="payWa" href="#" target="_blank" rel="noopener" class="btn-wa flex min-h-[54px] w-full py-3.5 text-base">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm4.5 12.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>
+        إرسال صورة الإيصال عبر واتساب
+      </a>
+
+      <!-- إشعار الشفافية والأمان -->
+      <div class="flex gap-3 rounded-2xl border border-ok-600/25 bg-ok-50 p-4 text-xs leading-relaxed text-ok-700">
+        <svg class="mt-0.5 shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+        <p><b>دفعك آمن:</b> هذا الموقع لا يطلب ولا يخزّن أرقام البطاقات المصرفية أو الرقم السري (PIN) أو رموز التحقق (OTP). لن نطلبها منك بأي وسيلة — أي رسالة أو اتصال يطلبها باسمنا احتيال، لا تشاركها.
+          <button type="button" id="payTerms" class="font-semibold underline underline-offset-2">سياسة الإلغاء والاسترجاع</button></p>
       </div>
     </div>
   </div>
@@ -886,7 +962,7 @@ const addDays = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 864e5)
 const dateAr = (iso, opts = { weekday: 'long', day: 'numeric', month: 'long' }) => new Date(iso + 'T12:00:00Z').toLocaleDateString('ar-LY', { timeZone: 'UTC', ...opts });
 const dur = m => `${Math.floor(m / 60)}س ${m % 60 ? (m % 60) + 'د' : ''}`.trim();
 const ageOn = (dob, on) => { const [a, b, c] = dob.split('-').map(Number), [x, y, z] = on.split('-').map(Number); return x - a - (y < b || (y === b && z < c) ? 1 : 0); };
-const PAY_NAMES = { sadad: 'سداد', tadawul: 'تداول', cod: 'كاش عند الاستلام' };
+const PAY_NAMES = { sadad: 'سداد', tadawul: 'تداول', bank: 'تحويل مصرفي', cod: 'كاش عند الاستلام' };
 const PAX_NAMES = { adult: 'بالغ', child: 'طفل', infant: 'رضيع' };
 
 // كل حقل عليه data-digits: نحول الأرقام العربية فوراً أثناء الكتابة
@@ -1657,6 +1733,7 @@ function showSuccess(b, m, passengers) {
   $('#mForm').hidden = true; $('#mSuccess').hidden = false;
   goStep(3);
   try { localStorage.setItem('tkr_last', JSON.stringify({ ref: b.ref, phone: $('#contactPhone').value })); } catch {}
+  window.dispatchEvent(new CustomEvent('booking:success', { detail: { b, m } })); // نافذة «إتمام الدفع»
 }
 $('#copyRef').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText($('#mRef').textContent); $('#copyRef').textContent = 'تم النسخ ✓'; }
@@ -1780,6 +1857,7 @@ function showTracked(b) {
       ${cancelled ? '' : `<a href="${waLink(`مرحباً ${siteName()}، أستفسر عن حجزي رقم ${b.ref}`)}" target="_blank" rel="noopener" class="btn-wa">${CFG.whatsapp ? 'مراسلة المكتب على واتساب' : 'مشاركة الحجز عبر واتساب'}</a>`}
     </div>
   </div>`;
+  window.dispatchEvent(new CustomEvent('booking:tracked', { detail: b })); // زر «بيانات الدفع» للحجوزات غير المدفوعة
   $('#tPrint').onclick = () => {
     const t = document.title; document.title = `حجز-${b.ref}`;
     window.print(); document.title = t;
@@ -1867,6 +1945,114 @@ if (trackParam) { const t = setInterval(() => { if (CFG) { clearInterval(t); ope
   if (wa && matchMedia('(max-width: 639.98px)').matches) addEventListener('scroll', () => {
     wa.classList.add('wa-away'); clearTimeout(t); t = setTimeout(() => wa.classList.remove('wa-away'), 900);
   }, { passive: true });
+})();
+</script>
+<script>
+// ===== نافذة «إتمام الدفع» — بيانات الحساب تُقرأ لحظياً من إعدادات المكتب (GET /api/settings) =====
+(function () {
+  const $1 = s => document.querySelector(s);
+  const modalEl = $1('#payModal'); if (!modalEl) return;
+  const CTX = { ref: '', tx: '', total: 0, method: 'sadad', pay: null };
+  const LABEL = { sadad: 'سداد', tadawul: 'تداول', bank: 'تحويل مصرفي' };
+  const escH = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const money = n => Number(n || 0).toLocaleString('en-US');
+  const ibanFmt = s => String(s || '').replace(/(.{4})/g, '$1 ').trim();
+
+  async function copyText(text, btn) {
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
+      try { const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove(); } catch (e2) {}
+    }
+    if (btn) { const old = btn.textContent; btn.textContent = ok ? 'تم النسخ ✓' : 'انسخه يدوياً'; setTimeout(() => { btn.textContent = old; }, 1800); }
+  }
+  const field = (label, value, copyVal) => `<div class="pay-field"><span class="text-ink-muted">${label}</span>
+    <span class="flex min-w-0 items-center gap-2"><b dir="ltr" class="font-num text-left">${escH(value)}</b>${copyVal !== false ? `<button type="button" class="pay-copy min-h-[36px] shrink-0 rounded-lg border border-line px-3 text-xs font-semibold text-ink-muted hover:text-ink">نسخ</button>` : ''}</span></div>`;
+
+  function render() {
+    const m = CTX.method, P = CTX.pay || {}, d = P[m] || {};
+    document.querySelectorAll('.pay-tab').forEach(b => { const on = b.value === m; b.setAttribute('aria-selected', on); b.tabIndex = on ? 0 : -1; });
+    const rows = [];
+    if (m === 'bank') {
+      if (d.bank) rows.push(['المصرف', d.bank, false]);
+      if (d.name) rows.push(['اسم المستفيد', d.name, d.name]);
+      if (d.account) rows.push(['رقم الحساب', d.account, d.account]);
+      if (d.iban) rows.push(['رقم الآيبان (IBAN)', ibanFmt(d.iban), d.iban]);
+    } else {
+      if (d.number) rows.push([m === 'sadad' ? 'رقم التاجر / الحساب' : 'رقم الحساب / المحفظة', d.number, d.number]);
+      if (d.name) rows.push(['اسم المستفيد', d.name, d.name]);
+    }
+    const hasMain = m === 'bank' ? (d.account || d.iban) : d.number;
+    const panel = $1('#payPanel');
+    if (!hasMain) {
+      panel.innerHTML = `<div class="rounded-2xl border border-dashed border-line p-5 text-center text-sm leading-relaxed text-ink-muted">بيانات ${LABEL[m]} لم يضفها المكتب بعد.<br>راسلنا على واتساب وسنرسل لك بيانات الدفع مباشرة.</div>`;
+    } else {
+      rows.push(['المبلغ', `${money(CTX.total)} د.ل`, String(CTX.total)]);
+      rows.push(['البيان / ملاحظات التحويل', CTX.ref, CTX.ref]);
+      panel.innerHTML = `<div class="overflow-hidden rounded-2xl border border-line bg-surface text-sm">${rows.map(([l, v, c]) => field(l, v, c === false ? false : c)).join('')}</div>`;
+      const vals = rowsWithCopy(rows);
+      panel.querySelectorAll('.pay-copy').forEach((btn, i) => { btn.onclick = () => copyText(vals[i], btn); });
+    }
+    const site = (typeof siteName === 'function') ? siteName() : '';
+    const msg = [`مرحباً${site ? ' ' + site : ''}، قمت بالدفع لحجزي ✅`, '', `🔖 كود الحجز: ${CTX.ref}`, ...(CTX.tx ? [`🧾 الرقم المرجعي: ${CTX.tx}`] : []),
+      `💰 المبلغ: ${money(CTX.total)} د.ل`, `💳 الوسيلة: ${LABEL[m]}`, '', '📎 مرفق صورة الإيصال.'].join('\n');
+    $1('#payWa').href = (typeof waLink === 'function') ? waLink(msg) : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  }
+  const rowsWithCopy = rows => rows.filter(r => r[2] !== false).map(r => r[2]);
+
+  async function open(ctx) {
+    Object.assign(CTX, ctx);
+    if (!LABEL[CTX.method]) CTX.method = 'sadad';
+    $1('#payAmount').textContent = money(CTX.total);
+    $1('#payBookRef').textContent = CTX.ref; $1('#payMemo').textContent = CTX.ref;
+    $1('#payTxRef').textContent = CTX.tx || ''; $1('#payTxRow').hidden = !CTX.tx;
+    render();
+    modalEl.classList.remove('hidden'); modalEl.classList.add('flex');
+    try { const st = await (await fetch('/api/settings', { cache: 'no-store' })).json(); CTX.pay = st.payment || null; } catch (e) {}
+    render(); // تحديث لحظي بآخر بيانات حفظها المكتب
+    setTimeout(() => $1('#payClose').focus(), 50);
+  }
+  const close = () => { modalEl.classList.add('hidden'); modalEl.classList.remove('flex'); };
+
+  $1('#payClose').addEventListener('click', close);
+  modalEl.addEventListener('click', e => { if (e.target === modalEl) close(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modalEl.classList.contains('hidden') && document.getElementById('termsModal').classList.contains('hidden')) { e.stopImmediatePropagation(); close(); } }, true);
+  $1('#payTabs').addEventListener('click', e => { const b = e.target.closest('.pay-tab'); if (b) { CTX.method = b.value; render(); } });
+  $1('#payTabs').addEventListener('keydown', e => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    const order = ['sadad', 'tadawul', 'bank'], i = order.indexOf(CTX.method), step = e.key === 'ArrowLeft' ? 1 : -1; // RTL
+    CTX.method = order[(i + step + 3) % 3]; render(); document.querySelector(`.pay-tab[value="${CTX.method}"]`).focus();
+  });
+  modalEl.querySelectorAll('.pay-copy').forEach(btn => {
+    btn.addEventListener('click', () => copyText(btn.previousElementSibling.textContent.trim(), btn));
+  });
+  $1('#payTerms').addEventListener('click', () => { if (typeof openTerms === 'function') openTerms('cancel'); });
+
+  // ملاحظة التحويل المصرفي في خطوة الدفع
+  const bf = document.getElementById('bookingForm');
+  if (bf) bf.addEventListener('change', e => { if (e.target.name === 'pay') $1('#bankNote').hidden = e.target.value !== 'bank'; });
+  if (bf) bf.addEventListener('reset', () => { $1('#bankNote').hidden = true; });
+
+  // بعد الحجز: زر «بيانات الدفع» + فتح النافذة تلقائياً للدفع الإلكتروني والتحويل
+  window.addEventListener('booking:success', e => {
+    const { b, m } = e.detail || {}; const btn = $1('#payOpenBtn');
+    const online = m && m !== 'cod';
+    btn.hidden = !online;
+    if (!online) return;
+    const ctx = { ref: b.ref, tx: b.payment_ref || '', total: b.total, method: m };
+    btn.onclick = () => open(ctx);
+    setTimeout(() => open(ctx), 450);
+  });
+  // تتبّع حجزي: زر بيانات الدفع للحجوزات غير المدفوعة
+  window.addEventListener('booking:tracked', e => {
+    const b = e.detail || {};
+    if (b.status !== 'pending_payment' || b.booking_status === 'cancelled') return;
+    const box = document.querySelector('#tResult .no-print'); if (!box) return;
+    const btn = document.createElement('button'); btn.type = 'button';
+    btn.className = 'btn-accent'; btn.textContent = '💳 بيانات الدفع';
+    btn.onclick = () => open({ ref: b.ref, tx: b.payment_ref || '', total: b.total, method: b.payment_method });
+    box.prepend(btn);
+  });
 })();
 </script>
 </body>
