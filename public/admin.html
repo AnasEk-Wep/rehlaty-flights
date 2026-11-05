@@ -67,8 +67,8 @@
       <p id="updated" class="text-sm text-ink-muted"></p>
     </div>
     <div class="flex flex-wrap gap-2">
-      <input id="search" type="search" placeholder="ابحث برقم الحجز أو الاسم أو الهاتف"
-        class="w-72 rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-brand-600">
+      <input id="search" type="search" placeholder="🔍 بحث فوري: الاسم، الهاتف، أو كود الحجز" autocomplete="off" enterkeyhint="search"
+        class="w-full rounded-xl sm:w-80 border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-brand-600">
       <button id="exportCsv" class="flex items-center gap-1.5 rounded-lg border border-ok-600 bg-white px-4 py-2 text-sm font-semibold text-ok-700 hover:bg-ok-50">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
         تصدير Excel
@@ -86,12 +86,12 @@
   </div>
 
   <!-- filter tabs -->
-  <div id="tabs" class="mb-4 flex flex-wrap gap-2 text-sm font-semibold">
+  <div id="tabs" class="mb-4 flex flex-wrap gap-2 text-sm font-semibold" role="tablist" aria-label="تصفية الحجوزات">
     <button data-filter="all"       class="tab rounded-full px-4 py-1.5">الكل <span class="cnt"></span></button>
     <button data-filter="pending"   class="tab rounded-full px-4 py-1.5">بانتظار التأكيد <span class="cnt"></span></button>
-    <button data-filter="confirmed" class="tab rounded-full px-4 py-1.5">مؤكدة <span class="cnt"></span></button>
+    <button data-filter="confirmed" class="tab rounded-full px-4 py-1.5">مؤكد <span class="cnt"></span></button>
+    <button data-filter="cancelled" class="tab rounded-full px-4 py-1.5">ملغي <span class="cnt"></span></button>
     <button data-filter="unpaid"    class="tab rounded-full px-4 py-1.5">غير مدفوعة <span class="cnt"></span></button>
-    <button data-filter="cancelled" class="tab rounded-full px-4 py-1.5">ملغاة <span class="cnt"></span></button>
   </div>
 
   <div class="overflow-x-auto rounded-2xl bg-white shadow-card">
@@ -146,15 +146,17 @@
 </main>
 
 <!-- ================= نموذج رحلة ================= -->
-<div id="flightModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-navy-900/60 p-4" role="dialog" aria-modal="true" aria-labelledby="fmTitle">
-  <form id="flightForm" class="my-6 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-card" novalidate>
-    <div class="mb-4 flex items-center justify-between">
+<div id="flightModal" class="fixed inset-0 z-50 hidden items-end justify-center bg-navy-900/60 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="fmTitle">
+  <form id="flightForm" class="flex min-w-0 max-h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-card sm:max-h-[92dvh] sm:rounded-2xl" novalidate>
+    <div class="flex shrink-0 items-center justify-between border-b border-line px-6 py-4">
       <h2 id="fmTitle" class="text-xl font-bold">إضافة رحلة</h2>
-      <button type="button" data-fm-close class="text-2xl leading-none text-ink-muted" aria-label="إغلاق">×</button>
+      <button type="button" data-fm-close class="grid h-9 w-9 place-items-center rounded-full text-2xl leading-none text-ink-muted hover:bg-canvas" aria-label="إغلاق">×</button>
     </div>
+    <div id="fmBody" class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-6 py-5" style="scroll-behavior:smooth;-webkit-overflow-scrolling:touch">
     <div class="grid gap-4 sm:grid-cols-3">
+      <label class="block sm:col-span-2"><span class="mb-1 block text-xs font-semibold">شركة الطيران</span><input name="airline" placeholder="الخطوط الليبية" class="fi" list="fmAirlines" autocomplete="off"></label>
       <label class="block"><span class="mb-1 block text-xs font-semibold">رقم الرحلة</span><input name="no" dir="ltr" placeholder="LN401" class="fi uppercase"></label>
-      <label class="block sm:col-span-2"><span class="mb-1 block text-xs font-semibold">شركة الطيران</span><input name="airline" placeholder="الخطوط الليبية" class="fi"></label>
+      <datalist id="fmAirlines"></datalist>
       <label class="block"><span class="mb-1 block text-xs font-semibold">رمز الشركة</span><input name="code" dir="ltr" maxlength="2" placeholder="LN" class="fi uppercase"></label>
       <label class="block"><span class="mb-1 block text-xs font-semibold">لون الشعار</span><input name="color" type="color" value="#2563EB" class="h-[46px] w-full cursor-pointer rounded-xl border border-line"></label>
       <label class="block"><span class="mb-1 block text-xs font-semibold">الوزن المسموح</span><input name="bag" placeholder="23 كغ" class="fi"></label>
@@ -163,12 +165,19 @@
       <label class="block"><span class="mb-1 block text-xs font-semibold">المدة (دقيقة)</span><input name="dur" inputmode="numeric" dir="ltr" placeholder="165" class="fi"></label>
       <label class="block"><span class="mb-1 block text-xs font-semibold">الإقلاع</span><input name="dep" type="time" class="fi"></label>
       <label class="block"><span class="mb-1 block text-xs font-semibold">الوصول</span><input name="arr" type="time" class="fi"></label>
-      <div class="grid grid-cols-2 gap-2">
-        <label class="block"><span class="mb-1 block text-xs font-semibold">التوقفات</span><select name="stops" class="fi"><option value="0">مباشرة</option><option value="1">1</option><option value="2">2</option></select></label>
-        <label class="block"><span class="mb-1 block text-xs font-semibold">عبر</span><input name="via" placeholder="تونس" class="fi"></label>
-      </div>
+      <label class="block"><span class="mb-1 block text-xs font-semibold">نوع الرحلة <span class="font-normal text-ink-subtle">(مباشرة / ترانزيت)</span></span><select name="stops" class="fi"><option value="0">مباشرة</option><option value="1">ترانزيت – توقف واحد</option><option value="2">ترانزيت – توقفان</option></select></label>
+      <label id="fmViaBox" class="hidden sm:col-span-3"><span class="mb-1 block text-xs font-semibold">عبر (مدينة الترانزيت)</span><input name="via" placeholder="مثال: تونس" class="fi"></label>
     </div>
-    <fieldset id="fmDaysBox" class="mt-5"><legend class="mb-2 text-xs font-semibold">أيام التشغيل</legend><div id="fmDays" class="flex flex-wrap gap-2"></div></fieldset>
+    <fieldset id="fmDaysBox" class="mt-5">
+      <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <legend class="text-xs font-semibold">أيام التشغيل</legend>
+        <div class="flex gap-1.5 text-xs font-semibold">
+          <button type="button" id="fmDaysAll" class="rounded-lg border border-brand-600 px-3 py-1 text-brand-700 hover:bg-brand-50">تحديد الكل</button>
+          <button type="button" id="fmDaysNone" class="rounded-lg border border-line px-3 py-1 text-ink-muted hover:bg-canvas">إلغاء التحديد</button>
+        </div>
+      </div>
+      <div id="fmDays" class="flex flex-wrap gap-2"></div>
+    </fieldset>
     <p id="fmDatedNote" class="mt-5 hidden rounded-lg bg-brand-50 p-3 text-xs leading-relaxed text-brand-700"></p>
     <fieldset class="mt-5 rounded-2xl border border-line p-4">
       <legend class="px-1 text-sm font-semibold">فئات الأسعار</legend>
@@ -176,14 +185,20 @@
         <p class="text-xs text-ink-muted">الترتيب مهم: الفئة الأولى تُباع أولاً. السعر للبالغ لكل اتجاه (الطفل 75%، الرضيع 10%، الضرائب تُضاف تلقائياً).</p>
         <label class="text-xs font-semibold">العملة <select name="currency" class="mr-1 rounded-lg border border-line px-2 py-1 text-sm"><option value="LYD">دينار</option><option value="USD">دولار</option><option value="EUR">يورو</option></select></label>
       </div>
+      <div class="mb-1 flex items-center gap-2 text-xs font-semibold text-ink-muted" aria-hidden="true">
+        <span class="w-14 shrink-0 sm:w-16"></span><span class="w-24 shrink-0 sm:w-28">عدد المقاعد</span><span class="invisible">×</span><span class="min-w-0 flex-1 sm:w-36 sm:flex-none">سعر البالغ</span><span class="w-8 shrink-0"></span>
+      </div>
       <div id="fmTiers" class="space-y-2"></div>
       <div class="mt-3 flex items-center justify-between text-sm"><button type="button" id="addTier" class="font-semibold text-brand-700 hover:underline">+ فئة أخرى</button><span id="fmCap" class="text-ink-muted"></span></div>
     </fieldset>
     <label class="mt-4 flex items-center gap-2 text-sm font-semibold"><input type="checkbox" name="active" checked class="h-4 w-4 accent-brand-600"> الرحلة معروضة للحجز</label>
-    <p id="fmErr" class="mt-3 hidden rounded-lg bg-red-50 p-3 text-xs text-red-700"></p>
-    <div class="mt-5 flex flex-wrap justify-between gap-2">
-      <button type="button" id="fmDelete" class="rounded-lg px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">حذف الرحلة</button>
-      <div class="mr-auto flex gap-2"><button type="button" data-fm-close class="rounded-lg px-4 py-2 text-sm font-semibold text-ink-muted hover:bg-canvas">إلغاء</button><button id="fmSave" class="rounded-lg bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">حفظ</button></div>
+    </div>
+    <div class="shrink-0 border-t border-line bg-white px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <p id="fmErr" class="mb-3 hidden rounded-lg bg-red-50 p-3 text-xs text-red-700" role="alert"></p>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <button type="button" id="fmDelete" class="rounded-lg px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">حذف الرحلة</button>
+        <div class="mr-auto flex gap-2"><button type="button" data-fm-close class="rounded-lg border border-line px-5 py-2.5 text-sm font-semibold text-ink-muted hover:bg-canvas">إلغاء</button><button id="fmSave" class="rounded-lg bg-brand-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-60">حفظ الرحلة</button></div>
+      </div>
     </div>
   </form>
 </div>
@@ -384,6 +399,29 @@
     return out.length ? `<div class="flex flex-wrap gap-1.5">${out.join('')}</div>` : '<span class="text-xs text-ink-subtle">—</span>';
   }
 
+  // تطبيع نص البحث: أرقام عربية/فارسية ← لاتينية، حروف صغيرة، توحيد الألف والياء والتاء المربوطة
+  const normQ = v => String(v || '').replace(/[\u0660-\u0669]/g, d => d.charCodeAt(0) - 0x660).replace(/[\u06F0-\u06F9]/g, d => d.charCodeAt(0) - 0x6F0)
+    .toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim();
+  // رابط واتساب مباشر للمسافر مع تفاصيل حجزه
+  function waTo(b) {
+    let d = String(b.contact_phone || '').replace(/\D/g, '');
+    if (!d) return '';
+    if (d.startsWith('00')) d = d.slice(2);
+    if (/^0\d{9}$/.test(d)) d = '218' + d.slice(1); else if (/^9\d{8}$/.test(d)) d = '218' + d;
+    const o = b.outbound || {};
+    const lead = (b.passengers && b.passengers[0] && b.passengers[0].fullName) || '';
+    const st = { pending: 'بانتظار التأكيد', confirmed: 'مؤكد ✅', cancelled: 'ملغي' }[b.booking_status] || '';
+    const lines = [
+      `مرحباً ${lead}،`, `معك ${SITE_NAME || 'مكتب الحجز'} بخصوص حجزك رقم ${b.ref}`,
+      `✈️ ${b.airline || o.airline || ''}${(b.flight_no || o.flight_no) ? ' ' + (b.flight_no || o.flight_no) : ''}: ${b.origin || o.origin || ''} ← ${b.destination || o.destination || ''}`,
+      (b.depart_date || o.depart_date) ? `📅 ${b.depart_date || o.depart_date}${(b.depart_time || o.depart_time) ? ' · الإقلاع ' + (b.depart_time || o.depart_time) : ''}` : '',
+      b.return_date ? `↩️ العودة: ${b.return_date}` : '',
+      `👥 المسافرون: ${(b.passengers || []).length}`, `💰 الإجمالي: ${fmt(b.total)} د.ل`, st ? `📌 حالة الحجز: ${st}` : '',
+    ].filter(Boolean);
+    return `https://wa.me/${d}?text=${encodeURIComponent(lines.join('\n'))}`;
+  }
+  const WA_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm4.5 12.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>';
+
   function render() {
     const active = all.filter(b => b.booking_status !== 'cancelled');
     $('#sPending').textContent = fmt(all.filter(FILTERS.pending).length);
@@ -394,16 +432,19 @@
 
     document.querySelectorAll('#tabs .tab').forEach(t => {
       const on = t.dataset.filter === filter;
+      t.setAttribute('aria-selected', on);
       t.className = 'tab rounded-full px-4 py-1.5 ' + (on ? 'bg-navy-900 text-white' : 'bg-white text-ink-muted shadow-card hover:text-ink');
       t.querySelector('.cnt').textContent = `(${all.filter(FILTERS[t.dataset.filter]).length})`;
     });
 
-    const q = $('#search').value.trim().toLowerCase();
+    const q = normQ($('#search').value), qd = q.replace(/\D/g, '').replace(/^(00)?218/, '').replace(/^0/, '');
     const list = all.filter(FILTERS[filter]).filter(b => !q ||
-      b.ref.toLowerCase().includes(q) || (b.phone || '').includes(q) || (b.contact_phone || '').includes(q) ||
-      b.passengers.some(p => p.fullName.toLowerCase().includes(q)));
+      normQ(b.ref).includes(q) || normQ(b.payment_ref).includes(q) ||
+      (qd.length >= 3 && [b.contact_phone, b.phone].some(ph => String(ph || '').replace(/\D/g, '').includes(qd))) ||
+      (b.passengers || []).some(p => normQ(p.fullName).includes(q)));
 
     $('#empty').classList.toggle('hidden', list.length > 0);
+    $('#empty').textContent = all.length ? 'لا توجد حجوزات مطابقة للبحث أو التصفية.' : 'لا توجد حجوزات.';
     $('#rows').innerHTML = list.map(b => {
       const d = utc(b.created_at);
       const cancelled = b.booking_status === 'cancelled';
@@ -411,7 +452,7 @@
         <td class="whitespace-nowrap px-4 py-3 font-bold ${cancelled ? 'line-through' : 'text-brand-700'}" dir="ltr">${esc(b.ref)}</td>
         <td class="px-4 py-3 text-ink-muted">${d.toLocaleDateString('ar-LY')}<br><span class="text-xs">${d.toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' })}</span></td>
         <td class="px-4 py-3"><span class="font-semibold">${esc(b.airline)}</span><br><span class="whitespace-nowrap text-xs text-ink-muted" dir="ltr">${esc(b.origin)} ${esc(b.depart_time)} → ${esc(b.destination)} ${esc(b.arrive_time)}</span></td>
-        <td class="px-4 py-3">${b.contact_phone ? `<div class="mb-1 text-xs font-semibold text-brand-700" dir="ltr">📞 ${esc(b.contact_phone)}</div>` : ''}${b.passengers.map(p => `<div>${esc(p.fullName)} <span class="text-xs text-ink-subtle" dir="ltr" title="${esc(p.passport)}">${esc(maskPassport(p.passport))}</span>${p.birth_date ? ` <span class="text-[11px] text-ink-subtle" title="تاريخ الميلاد">· 🎂 ${esc(p.birth_date)}</span>` : ''}${p.passport_expiry ? ` <span class="text-[11px] text-ink-subtle" title="انتهاء الجواز">· ⏳ ${esc(p.passport_expiry)}</span>` : ''}</div>`).join('')}</td>
+        <td class="px-4 py-3">${b.contact_phone ? `<div class="mb-1 flex items-center gap-1.5 text-xs font-semibold text-brand-700"><span dir="ltr">📞 ${esc(b.contact_phone)}</span><a href="${esc(waTo(b))}" target="_blank" rel="noopener" class="inline-grid h-6 w-6 place-items-center rounded-full bg-[#25D366] text-white hover:bg-[#1da851]" title="مراسلة المسافر على واتساب مع تفاصيل الحجز" aria-label="واتساب ${esc(b.contact_phone)}">${WA_SVG}</a></div>` : ''}${b.passengers.map(p => `<div>${esc(p.fullName)} <span class="text-xs text-ink-subtle" dir="ltr" title="${esc(p.passport)}">${esc(maskPassport(p.passport))}</span>${p.birth_date ? ` <span class="text-[11px] text-ink-subtle" title="تاريخ الميلاد">· 🎂 ${esc(p.birth_date)}</span>` : ''}${p.passport_expiry ? ` <span class="text-[11px] text-ink-subtle" title="انتهاء الجواز">· ⏳ ${esc(p.passport_expiry)}</span>` : ''}</div>`).join('')}</td>
         <td class="px-4 py-3">${PAY[b.payment_method] || esc(b.payment_method)}${b.payment_ref ? `<br><span class="text-[11px] text-ink-muted" dir="ltr" title="مرجع الدفع">${esc(b.payment_ref)}</span>` : ''}${b.phone ? `<br><span class="text-xs text-ink-muted" dir="ltr">محفظة: ${esc(b.phone)}</span>` : ''}</td>
         <td class="space-y-1 px-4 py-3">${badge(BOOKING_STATUS[b.booking_status] || [b.booking_status, 'bg-canvas'])}<br>${badge(cancelled && b.status === 'paid' ? ['مدفوع · يلزم استرداد', 'bg-red-50 text-red-700'] : (PAY_STATUS[b.status] || [b.status, 'bg-canvas']))}</td>
         <td class="px-4 py-3 font-bold">${fmt(b.total)} <span class="text-xs font-medium text-ink-muted">د.ل</span></td>
@@ -718,17 +759,19 @@
         : s.days.length === 7 ? 'يومياً' : s.days.map(d => DAY_NAMES[d]).join('، ');
       const prices = fut && fut.flatMap(d => s.dated[d].tiers.map(t => t.price));
       const tiers = fut && fut.length > 1 ? `<span class="inline-block whitespace-nowrap rounded-md bg-ok-50 px-2 py-0.5 text-xs font-semibold text-ok-700">${fmt(Math.min(...prices))}${Math.max(...prices) !== Math.min(...prices) ? ' – ' + fmt(Math.max(...prices)) : ''} ${CUR[s.currency]}</span>` : s.tiers.map((t, i) => `<span class="inline-block whitespace-nowrap rounded-md ${i ? 'bg-canvas' : 'bg-ok-50 text-ok-700'} px-2 py-0.5 text-xs font-semibold">${t.seats} × ${fmt(t.price)} ${CUR[s.currency]}</span>`).join(' ');
-      const st = !s.active ? badge(['موقوفة', 'bg-canvas text-ink-muted']) : !s.sellable ? badge(['بانتظار سعر الصرف', 'bg-accent-50 text-accent-600']) : badge(['معروضة', 'bg-ok-50 text-ok-700']);
+      const st = !s.active ? badge(['موقوفة مؤقتاً', 'bg-canvas text-ink-muted']) : !s.sellable ? badge(['بانتظار سعر الصرف', 'bg-accent-50 text-accent-600']) : badge(['معروضة', 'bg-ok-50 text-ok-700']);
       return `<tr class="align-top hover:bg-canvas/60">
         <td class="px-4 py-3"><div class="flex items-center gap-2"><span class="grid h-9 w-9 place-items-center rounded-lg text-xs font-bold text-white" style="background:${esc(s.color)}">${esc(s.code)}</span><div><p class="font-semibold" dir="ltr">${esc(s.no)}</p><p class="text-xs text-ink-muted">${esc(s.airline)}</p></div></div></td>
-        <td class="px-4 py-3"><p class="font-semibold">${esc(city(s.from))} ← ${esc(city(s.to))}</p><p class="text-xs text-ink-muted" dir="ltr">${s.from} ${s.dep} → ${s.to} ${s.arr}</p><p class="text-xs text-ink-subtle">${s.stops ? 'توقف' + (s.via ? ' · ' + esc(s.via) : '') : 'مباشرة'}</p></td>
+        <td class="px-4 py-3"><p class="font-semibold">${esc(city(s.from))} ← ${esc(city(s.to))}</p><p class="text-xs text-ink-muted" dir="ltr">${s.from} ${s.dep} → ${s.to} ${s.arr}</p><p class="text-xs text-ink-subtle">${s.stops ? 'ترانزيت' + (s.via ? ' عبر ' + esc(s.via) : '') : 'مباشرة'}</p></td>
         <td class="px-4 py-3 text-xs">${days}</td>
         <td class="px-4 py-3"><div class="flex flex-wrap gap-1">${tiers}</div><p class="mt-1 text-xs text-ink-subtle">${fut && fut.length > 1 ? 'السعر والمقاعد تختلف حسب التاريخ' : `السعة: ${s.capacity} مقعد`}</p></td>
-        <td class="px-4 py-3">${st}</td>
+        <td class="px-4 py-3"><label class="relative flex cursor-pointer items-center gap-2" title="${s.active ? 'إيقاف مؤقت: تختفي من الموقع دون حذف' : 'تفعيل: تظهر في الموقع للحجز'}">
+          <input type="checkbox" data-f="active" data-no="${esc(s.no)}" ${s.active ? 'checked' : ''} class="peer sr-only" aria-label="عرض الرحلة ${esc(s.no)} في الموقع">
+          <span class="relative h-6 w-11 shrink-0 rounded-full bg-line transition-colors peer-checked:bg-ok-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-600 after:absolute after:right-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:-translate-x-5"></span>
+          ${st}</label></td>
         <td class="px-4 py-3"><div class="flex flex-wrap gap-1.5">
           <button data-f="dates" data-no="${esc(s.no)}" class="whitespace-nowrap rounded-xl bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100">💺 المقاعد حسب اليوم</button>
           <button data-f="edit" data-no="${esc(s.no)}" class="whitespace-nowrap rounded-xl bg-canvas px-3 py-1.5 text-xs font-semibold hover:bg-line">✏️ تعديل</button>
-          <button data-f="toggle" data-no="${esc(s.no)}" class="whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold ${s.active ? 'text-accent-600 hover:bg-accent-50' : 'text-ok-700 hover:bg-ok-50'}">${s.active ? 'إيقاف' : 'تفعيل'}</button>
         </div></td></tr>`;
     }).join('');
   }
@@ -736,11 +779,11 @@
   // ---------- نموذج الرحلة ----------
   const fm = $('#flightForm'), fmModal = $('#flightModal');
   function tierRow(t = {}) {
-    return `<div class="tier flex items-center gap-2"><span class="w-16 text-xs text-ink-muted"></span>
-      <input data-t="seats" inputmode="numeric" dir="ltr" placeholder="مقاعد" value="${t.seats ?? ''}" class="fi w-28">
+    return `<div class="tier flex items-center gap-2"><span class="w-14 shrink-0 text-xs text-ink-muted sm:w-16"></span>
+      <input data-t="seats" inputmode="numeric" dir="ltr" placeholder="12" aria-label="عدد المقاعد" value="${t.seats ?? ''}" class="fi w-24 shrink-0 sm:w-28">
       <span class="text-ink-subtle">×</span>
-      <input data-t="price" inputmode="decimal" dir="ltr" placeholder="السعر" value="${t.price ?? ''}" class="fi w-36">
-      <button type="button" data-t-del class="rounded-lg px-2 py-1 text-lg text-red-500 hover:bg-red-50" aria-label="حذف الفئة">×</button></div>`;
+      <input data-t="price" inputmode="decimal" dir="ltr" placeholder="0" aria-label="سعر البالغ" value="${t.price ?? ''}" class="fi min-w-0 flex-1 sm:w-36 sm:flex-none">
+      <button type="button" data-t-del class="w-8 shrink-0 rounded-lg px-2 py-1 text-lg text-red-500 hover:bg-red-50" aria-label="حذف الفئة">×</button></div>`;
   }
   function refreshTiers() {
     const rows = [...$('#fmTiers').querySelectorAll('.tier')];
@@ -764,15 +807,33 @@
     fm.no.readOnly = !!s; fm.no.classList.toggle('bg-canvas', !!s);
     $('#fmDays').innerHTML = DAY_NAMES.map((n, d) => `<label class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm has-[:checked]:border-brand-600 has-[:checked]:bg-brand-50"><input type="checkbox" value="${d}" ${v.days.includes(d) ? 'checked' : ''} class="accent-brand-600">${n}</label>`).join('');
     $('#fmTiers').innerHTML = v.tiers.map(tierRow).join(''); refreshTiers();
+    syncVia();
+    const names = [...new Set(FL.schedules.map(x => x.airline).filter(Boolean))];
+    $('#fmAirlines').innerHTML = names.map(n => `<option value="${esc(n)}"></option>`).join('');
     const dated = !!(s && s.dated);
     $('#fmDaysBox').classList.toggle('hidden', dated);
     $('#fmDatedNote').classList.toggle('hidden', !dated);
     if (dated) $('#fmDatedNote').textContent = 'رحلة بتواريخ محددة (مستوردة من Excel). أي تغيير في الوقت أو المدة أو فئات الأسعار هنا يُطبَّق على كل تواريخها القادمة، وما لم تغيّره يبقى كما هو لكل تاريخ. لإضافة تواريخ أو تعديل تاريخ واحد: أعد استيراد الملف.';
     $('#fmDelete').classList.toggle('hidden', !s);
-    fmModal.classList.remove('hidden'); fmModal.classList.add('flex');
-    (s ? fm.airline : fm.no).focus();
+    fmModal.classList.remove('hidden'); fmModal.classList.add('flex'); document.body.style.overflow = 'hidden';
+    $('#fmBody').scrollTop = 0;
+    fm.airline.focus();
   }
-  const closeFlight = () => { fmModal.classList.add('hidden'); fmModal.classList.remove('flex'); };
+  // حقل «عبر» يظهر فقط للرحلات الترانزيت
+  function syncVia() { const on = fm.stops.value !== '0'; $('#fmViaBox').classList.toggle('hidden', !on); $('#fmViaBox').classList.toggle('block', on); if (!on) fm.via.value = ''; }
+  fm.stops.addEventListener('change', () => { syncVia(); if (fm.stops.value !== '0') fm.via.focus(); });
+  // أيام التشغيل: تحديد/إلغاء الكل
+  $('#fmDaysAll').addEventListener('click', () => $('#fmDays').querySelectorAll('input').forEach(i => { i.checked = true; }));
+  $('#fmDaysNone').addEventListener('click', () => $('#fmDays').querySelectorAll('input').forEach(i => { i.checked = false; }));
+  // اختيار شركة موجودة يعبّئ رمزها ولونها تلقائياً
+  fm.airline.addEventListener('change', () => {
+    if (editing) return;
+    const prev = FL.schedules.find(x => x.airline === fm.airline.value.trim()); if (!prev) return;
+    if (!fm.code.value || fm.code.dataset.auto) { fm.code.value = prev.code || ''; delete fm.code.dataset.auto; }
+    fm.color.value = prev.color || fm.color.value; if (!fm.bag.value) fm.bag.value = prev.bag || '';
+  });
+  const closeFlight = () => { fmModal.classList.add('hidden'); fmModal.classList.remove('flex'); document.body.style.overflow = ''; };
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !fmModal.classList.contains('hidden')) closeFlight(); });
   fmModal.addEventListener('click', e => { if (e.target === fmModal || e.target.closest('[data-fm-close]')) closeFlight(); });
   fm.no.addEventListener('input', () => { if (!fm.code.value || fm.code.dataset.auto) { fm.code.value = fm.no.value.slice(0, 2).toUpperCase(); fm.code.dataset.auto = 1; } });
   $('#addFlight').addEventListener('click', () => openFlight(null));
@@ -782,7 +843,7 @@
     const body = {
       no: fm.no.value, airline: fm.airline.value, code: fm.code.value, color: fm.color.value, bag: fm.bag.value,
       from: fm.from.value, to: fm.to.value, dur: toAsciiNum(fm.dur.value), dep: fm.dep.value, arr: fm.arr.value,
-      stops: fm.stops.value, via: fm.via.value, currency: fm.currency.value, active: fm.active.checked,
+      stops: fm.stops.value, via: fm.stops.value === '0' ? '' : fm.via.value, currency: fm.currency.value, active: fm.active.checked,
       days: [...$('#fmDays').querySelectorAll('input:checked')].map(i => Number(i.value)),
       tiers: [...$('#fmTiers').querySelectorAll('.tier')].map(r => ({ seats: toAsciiNum(r.querySelector('[data-t=seats]').value), price: toAsciiNum(r.querySelector('[data-t=price]').value) })),
     };
@@ -804,10 +865,16 @@
     const s = FL.schedules.find(x => x.no === b.dataset.no); if (!s) return;
     if (b.dataset.f === 'edit') openFlight(s);
     if (b.dataset.f === 'dates') openDates(s);
-    if (b.dataset.f === 'toggle') {
-      try { await api(`/api/admin/schedules/${encodeURIComponent(s.no)}`, { method: 'PUT', body: JSON.stringify({ ...s, active: !s.active }) }); await loadFlights(); toast(s.active ? 'تم إيقاف الرحلة' : 'تم تفعيل الرحلة'); }
-      catch (err) { toast(err.message, false); }
-    }
+  });
+  // تفعيل / إيقاف مؤقت بضغطة واحدة (لا يغيّر أي بيانات أخرى للرحلة)
+  $('#fRows').addEventListener('change', async e => {
+    const t = e.target.closest('input[data-f="active"]'); if (!t) return;
+    const s = FL.schedules.find(x => x.no === t.dataset.no); if (!s) return;
+    const want = t.checked; t.disabled = true;
+    try {
+      await api(`/api/admin/schedules/${encodeURIComponent(s.no)}/active`, { method: 'PATCH', body: JSON.stringify({ active: want }) });
+      await loadFlights(); toast(want ? `تم تفعيل الرحلة ${s.no} — تظهر الآن في الموقع` : `تم إيقاف الرحلة ${s.no} مؤقتاً — اختفت من الموقع`);
+    } catch (err) { t.checked = !want; t.disabled = false; toast(err.message, false); }
   });
 
   $('#fxForm').addEventListener('submit', async e => {
@@ -951,6 +1018,7 @@
 
   $('#refresh').addEventListener('click', () => load().then(() => toast('تم التحديث')).catch(err => toast(err.message, false)));
   $('#search').addEventListener('input', render);
+  $('#search').addEventListener('keydown', e => { if (e.key === 'Escape' && $('#search').value) { $('#search').value = ''; render(); } });
   $('#tabs').addEventListener('click', e => { const t = e.target.closest('.tab'); if (t) { filter = t.dataset.filter; render(); } });
 
   // التحقق من الجلسة عند فتح الصفحة (السيرفر يحوّل لصفحة الدخول أصلاً، وهذا احتياط لو انتهت أثناء الاستخدام)
