@@ -936,6 +936,18 @@ app.put('/api/admin/schedules/:no', requireAdmin, ah(async (req, res) => {
   res.json({ schedule: data });
 }));
 
+// تفعيل / إيقاف مؤقت للرحلة (يخفيها من البحث دون حذفها) — لا يلمس الأسعار أو التواريخ
+app.patch('/api/admin/schedules/:no/active', requireAdmin, ah(async (req, res) => {
+  const cur = SCHEDULES.find(x => x.no === req.params.no);
+  if (!cur) return res.status(404).json({ error: 'الرحلة غير موجودة' });
+  if (typeof req.body?.active !== 'boolean') return res.status(400).json({ error: 'قيمة غير صالحة' });
+  const data = { ...cur, active: req.body.active, updated_at: now() };
+  await store.upsertSchedule(data); // قاعدة البيانات أولاً ثم الذاكرة
+  SCHEDULES[SCHEDULES.indexOf(cur)] = data;
+  console.log(`[schedule] ${data.active ? '▶' : '⏸'} ${data.no}`);
+  res.json({ schedule: { ...data, capacity: capacityOf(data), sellable: sellable(data) } });
+}));
+
 app.delete('/api/admin/schedules/:no', requireAdmin, ah(async (req, res) => {
   const cur = SCHEDULES.find(x => x.no === req.params.no);
   if (!cur) return res.status(404).json({ error: 'الرحلة غير موجودة' });
