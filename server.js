@@ -848,6 +848,29 @@ app.patch('/api/bookings/:ref/status', requireAdmin, ah(async (req, res) => {
   }
 }));
 
+// ---------- حذف نهائي (الإدارة فقط) ----------
+// حذف حجز واحد: يجب إرسال { confirm: "<رقم الحجز>" } حتى لا يُحذف شيء بالخطأ
+app.delete('/api/bookings/:ref', requireAdmin, ah(async (req, res) => {
+  const ref = String(req.params.ref || '').trim().toUpperCase();
+  if (String(req.body?.confirm || '').trim().toUpperCase() !== ref) return res.status(400).json({ error: 'تأكيد الحذف غير مطابق لرقم الحجز' });
+  await withBookingLock(async () => {
+    const ok = await store.deleteBooking(ref);
+    if (!ok) return res.status(404).json({ error: 'الحجز غير موجود' });
+    console.log(`[delete] ${ref} حُذف نهائياً بواسطة ${req.admin?.sub || 'admin'}`);
+    res.json({ deleted: ref });
+  });
+}));
+// تصفير سجل الحجوزات بالكامل: يجب إرسال { confirm: "حذف الكل" }
+app.delete('/api/bookings', requireAdmin, ah(async (req, res) => {
+  if (String(req.body?.confirm || '').trim() !== 'حذف الكل') return res.status(400).json({ error: 'اكتب «حذف الكل» لتأكيد تصفير السجل' });
+  await withBookingLock(async () => {
+    const n = await store.deleteAllBookings();
+    HOLDS.clear(); // لا مقاعد معلّقة بعد التصفير
+    console.log(`[delete-all] حُذف ${n} حجزاً بواسطة ${req.admin?.sub || 'admin'}`);
+    res.json({ deleted: n });
+  });
+}));
+
 // ---------- تعديل الإعدادات (الإدارة) ----------
 app.put('/api/settings', requireAdmin, ah(async (req, res) => {
   const body = req.body || {};

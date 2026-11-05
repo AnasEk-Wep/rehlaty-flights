@@ -96,6 +96,14 @@ function jsonStore() {
       writeJson(BOOKINGS_FILE, list);
       return true;
     },
+    // حذف نهائي (لوحة التحكم فقط)
+    async deleteBooking(ref) {
+      const list = all(), next = list.filter(b => b.ref !== ref);
+      if (next.length === list.length) return false;
+      writeJson(BOOKINGS_FILE, next);
+      return true;
+    },
+    async deleteAllBookings() { const n = all().length; writeJson(BOOKINGS_FILE, []); return n; },
     async getSettings() { return { ...DEFAULT_SETTINGS, ...readJson(SETTINGS_FILE, {}) }; },
     async saveSettings(settings) { writeJson(SETTINGS_FILE, settings); },
     // ---- جدول الرحلات (يديره المكتب من لوحة التحكم) ----
@@ -173,6 +181,8 @@ function mongoStore(uri) {
       const r = await bookings.replaceOne({ ref: booking.ref }, strip(booking));
       return r.matchedCount === 1;
     },
+    async deleteBooking(ref) { return (await bookings.deleteOne({ ref })).deletedCount === 1; },
+    async deleteAllBookings() { return (await bookings.deleteMany({})).deletedCount; },
     async getSettings() {
       const doc = await settings.findOne({ _id: 'site' });
       return { ...DEFAULT_SETTINGS, ...strip(doc || {}) };
