@@ -74,6 +74,7 @@
         تصدير Excel
       </button>
       <button id="refresh" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">تحديث</button>
+      <button id="wipeAll" class="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50" title="حذف كل الحجوزات نهائياً">🗑 تصفير السجل</button>
     </div>
   </div>
 
@@ -229,6 +230,32 @@
   </div>
 </div>
 
+<!-- ================= تأكيد الحذف النهائي ================= -->
+<div id="delModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-navy-900/60 p-4" role="alertdialog" aria-modal="true" aria-labelledby="delTitle" aria-describedby="delText">
+  <form id="delForm" class="w-full max-w-md rounded-2xl bg-white p-6 shadow-card" novalidate>
+    <div class="flex items-start gap-3">
+      <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-red-50 text-xl text-red-600" aria-hidden="true">🗑</span>
+      <div>
+        <h2 id="delTitle" class="text-lg font-bold">حذف نهائي</h2>
+        <p id="delText" class="mt-1 text-sm leading-relaxed text-ink-muted"></p>
+      </div>
+    </div>
+    <div class="mt-4 rounded-xl bg-red-50 p-3 text-xs leading-relaxed text-red-700">⚠️ الحذف النهائي يمسح السجل من قاعدة البيانات ولا يمكن استرجاعه، ولا يظهر في التقارير أو ملف Excel. لإيقاف حجز مع الاحتفاظ بسجله استخدم «إلغاء الحجز».</div>
+    <label class="mt-4 block">
+      <span id="delHint" class="mb-1 block text-sm font-semibold"></span>
+      <input id="delInput" autocomplete="off" spellcheck="false" class="w-full rounded-xl border border-line px-4 py-3 text-sm outline-none focus:border-red-600">
+    </label>
+    <p id="delErr" class="mt-2 hidden text-xs text-red-600"></p>
+    <div class="mt-5 flex flex-wrap items-center justify-between gap-2">
+      <button type="button" id="delBackup" class="hidden text-sm font-semibold text-ok-700 hover:underline">⬇ تنزيل نسخة Excel أولاً</button>
+      <div class="mr-auto flex gap-2">
+        <button type="button" id="delCancel" class="rounded-lg px-4 py-2 text-sm font-semibold text-ink-muted hover:bg-canvas">تراجع</button>
+        <button id="delGo" disabled class="rounded-lg bg-red-600 px-5 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40">حذف نهائي</button>
+      </div>
+    </div>
+  </form>
+</div>
+
 <!-- ================= الإعدادات ================= -->
 <div id="settingsModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-navy-900/60 p-4" role="dialog" aria-modal="true" aria-labelledby="setTitle">
   <form id="settingsForm" class="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-card" novalidate>
@@ -364,7 +391,8 @@
     if (b.booking_status === 'pending') out.push(btn('confirm', '✓ تأكيد الحجز', 'bg-ok-600 text-white hover:bg-[#059669]'));
     if (!cancelled && b.status !== 'paid') out.push(btn('mark_paid', '💵 تم استلام الدفع', 'bg-ok-50 text-ok-700 hover:bg-ok-600 hover:text-white'));
     if (!cancelled) out.push(btn('print', '🖨 طباعة التذكرة', 'bg-canvas text-ink hover:bg-line'));
-    if (!cancelled) out.push(btn('cancel', 'إلغاء', 'text-red-600 hover:bg-red-50'));
+    if (!cancelled) out.push(btn('cancel', 'إلغاء الحجز', 'text-red-600 hover:bg-red-50'));
+    out.push(btn('delete', '🗑 حذف نهائي', 'text-ink-muted hover:bg-red-600 hover:text-white'));
     return out.length ? `<div class="flex flex-wrap gap-1.5">${out.join('')}</div>` : '<span class="text-xs text-ink-subtle">—</span>';
   }
 
@@ -405,14 +433,15 @@
   }
 
   // ===== Actions =====
-  const ACTION_MSG = { confirm: 'تم تأكيد الحجز', cancel: 'تم إلغاء الحجز', mark_paid: 'تم تسجيل استلام الدفع' };
+  const ACTION_MSG = { confirm: 'تم تأكيد الحجز', cancel: 'تم إلغاء الحجز وإرجاع المقاعد للرحلة', mark_paid: 'تم تسجيل استلام الدفع' };
 
   $('#rows').addEventListener('click', async e => {
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
     const { action, ref } = btn.dataset;
     if (action === 'print') return printTicket(ref, btn);
-    if (action === 'cancel' && !confirm(`هل تريد إلغاء الحجز ${ref}؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+    if (action === 'delete') return askDelete(ref);
+    if (action === 'cancel' && !confirm(`هل تريد إلغاء الحجز ${ref}؟\nستتحول حالته إلى «ملغي» وترجع مقاعده للرحلة تلقائياً. لا يمكن التراجع عن الإلغاء.`)) return;
     if (action === 'mark_paid') {
       const b = all.find(x => x.ref === ref);
       if (!confirm(`تأكيد استلام مبلغ ${fmt(b.total)} د.ل للحجز ${ref}؟`)) return;
@@ -430,6 +459,46 @@
       toast(err.message, false);
       btn.disabled = false; btn.style.opacity = '';
     }
+  });
+
+  // ===== الحذف النهائي (حجز واحد أو تصفير السجل) — نافذة تأكيد بكتابة نص مطابق =====
+  const delModal = $('#delModal'); let DEL = null;
+  function openDel(mode, ref) {
+    DEL = { mode, ref, need: mode === 'all' ? 'حذف الكل' : ref };
+    $('#delTitle').textContent = mode === 'all' ? 'تصفير سجل الحجوزات' : 'حذف الحجز نهائياً';
+    $('#delText').innerHTML = mode === 'all'
+      ? `سيتم حذف <b>كل الحجوزات (${all.length})</b> نهائياً وتفريغ الجدول، وترجع كل المقاعد للرحلات.`
+      : `سيتم حذف الحجز <b dir="ltr">${esc(ref)}</b> وكل بياناته (المسافرون، الجوازات، الدفع) من المنظومة، وترجع مقاعده للرحلة.`;
+    $('#delHint').innerHTML = `للتأكيد اكتب: <b ${mode === 'all' ? '' : 'dir="ltr"'}>${esc(DEL.need)}</b>`;
+    $('#delInput').value = ''; $('#delInput').dir = mode === 'all' ? 'rtl' : 'ltr';
+    $('#delGo').disabled = true; $('#delErr').classList.add('hidden');
+    $('#delBackup').classList.toggle('hidden', mode !== 'all');
+    delModal.classList.remove('hidden'); delModal.classList.add('flex');
+    setTimeout(() => $('#delInput').focus(), 50);
+  }
+  const closeDel = () => { delModal.classList.add('hidden'); delModal.classList.remove('flex'); DEL = null; };
+  function askDelete(ref) { openDel('one', ref); }
+  $('#delInput').addEventListener('input', () => {
+    const v = $('#delInput').value.trim(); $('#delGo').disabled = !DEL || (DEL.mode === 'all' ? v !== DEL.need : v.toUpperCase() !== DEL.need);
+  });
+  $('#delCancel').addEventListener('click', closeDel);
+  delModal.addEventListener('click', e => { if (e.target === delModal) closeDel(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !delModal.classList.contains('hidden')) closeDel(); });
+  $('#delBackup').addEventListener('click', () => $('#exportCsv').click());
+  $('#wipeAll').addEventListener('click', () => { if (!all.length) return toast('السجل فارغ بالفعل'); openDel('all'); });
+  $('#delForm').addEventListener('submit', async e => {
+    e.preventDefault(); if (!DEL || $('#delGo').disabled) return;
+    const { mode, ref } = DEL; $('#delGo').disabled = true; $('#delGo').textContent = 'جارٍ الحذف…';
+    try {
+      if (mode === 'all') {
+        const r = await api('/api/bookings', { method: 'DELETE', body: JSON.stringify({ confirm: 'حذف الكل' }) });
+        all = []; render(); closeDel(); toast(`تم تصفير السجل — حُذف ${r.deleted} حجزاً`);
+      } else {
+        await api(`/api/bookings/${encodeURIComponent(ref)}`, { method: 'DELETE', body: JSON.stringify({ confirm: ref }) });
+        all = all.filter(b => b.ref !== ref); render(); closeDel(); toast(`تم حذف الحجز ${ref} نهائياً`);
+      }
+    } catch (err) { $('#delErr').textContent = err.message; $('#delErr').classList.remove('hidden'); $('#delGo').disabled = false; }
+    finally { $('#delGo').textContent = 'حذف نهائي'; }
   });
 
   // ===== Ticket / PDF =====
