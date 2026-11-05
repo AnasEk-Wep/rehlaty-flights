@@ -482,6 +482,13 @@ async function validateBooking(body) {
   return { errors, data: { tripType, out, ret, counts, passengers, contact_phone, email, method, phone, holdId } };
 }
 
+// رمز تتبّع موقَّع لكل حجز — يوضع في رمز QR على التذكرة ليفتح «تتبّع حجزي» مباشرة بدون إدخال الهاتف
+// (لا يمكن تخمينه: HMAC بمفتاح السيرفر، ولا يكشف أرقام الجوازات)
+const trackToken = ref => crypto.createHmac('sha256', SESSION_SECRET).update('track:' + ref).digest('base64url').slice(0, 16);
+function validTrackToken(ref, t) {
+  const a = Buffer.from(String(t || '')), b = Buffer.from(trackToken(ref));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 // رقم مرجعي مميز لعملية الدفع (يُكتب في البيان مع كود الحجز) — مثال: PAY-261105-7KQ2M
 function newPaymentRef() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -733,7 +740,7 @@ app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزا
     res.status(201).json({
       success: true,
       booking: {
-        ref: booking.ref, payment_ref: booking.payment_ref, status: booking.status, booking_status: booking.booking_status, trip_type: tripType,
+        ref: booking.ref, payment_ref: booking.payment_ref, track_token: trackToken(booking.ref), status: booking.status, booking_status: booking.booking_status, trip_type: tripType,
         fare_total: booking.fare_total, taxes: booking.taxes, service_fee: booking.service_fee,
         cod_fee: booking.cod_fee, total: booking.total,
       },
@@ -749,7 +756,9 @@ app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزا
 app.get('/api/track', rateLimit(20, 15 * 60_000, 'محاولات بحث كثيرة، حاول بعد 15 دقيقة'), ah(async (req, res) => {
   const ref = toAsciiDigits(req.query.ref).trim().toUpperCase();
   const phone = normalizePhone(req.query.phone);
-  const b = phone ? await store.findBookingByRefAndPhone(ref, phone) : null;
+  const tok = String(req.query.t || '');
+  const b = phone ? await store.findBookingByRefAndPhone(ref, phone)
+    : (tok && /^TKR-[A-Z0-9]{6}$/.test(ref) && validTrackToken(ref, tok)) ? await store.findBooking(ref) : null;
   if (!b) return res.status(404).json({ error: 'لم نجد حجزاً بهذه البيانات. تأكد من رقم الحجز ورقم الهاتف.' });
   const out = b.outbound || { airline: b.airline, origin: b.origin, destination: b.destination, depart_date: b.depart_date, depart_time: b.depart_time, arrive_time: b.arrive_time };
   res.json({
@@ -758,6 +767,7 @@ app.get('/api/track', rateLimit(20, 15 * 60_000, 'محاولات بحث كثير
       passengers: (b.passengers || []).map(p => ({ fullName: p.fullName, type: p.type || 'adult' })),
       adults: b.adults, children: b.children, infants: b.infants,
       status: b.status, booking_status: b.booking_status, payment_method: b.payment_method, payment_ref: b.payment_ref || null,
+      track_token: trackToken(b.ref),
       fare_total: b.fare_total, taxes: b.taxes, service_fee: b.service_fee, cod_fee: b.cod_fee, total: b.total,
       created_at: b.created_at,
     },
