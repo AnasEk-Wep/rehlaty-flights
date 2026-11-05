@@ -15,7 +15,7 @@
 //    GET   /api/bookings             ← كل الحجوزات
 //    GET   /api/bookings/:ref        ← حجز واحد (للتذكرة)
 //    PATCH /api/bookings/:ref/status ← تأكيد / إلغاء / تم استلام الدفع
-//    PUT   /api/settings             ← حفظ الإعدادات { "site_name", "whatsapp", "fx_usd", "fx_eur" }
+//    PUT   /api/settings             ← حفظ الإعدادات { "site_name", "whatsapp", "fx_usd", "fx_eur", "payment": { sadad, tadawul, bank } }
 //    GET/POST        /api/admin/schedules           ← جدول الرحلات وفئات الأسعار
 //    PUT/DELETE      /api/admin/schedules/:no       ← تعديل / حذف رحلة
 //    GET             /api/admin/schedules/:no/dates ← المقاعد المباعة والمتبقية لكل يوم
@@ -94,6 +94,44 @@ setInterval(() => { const t = Date.now(); for (const [k, v] of badTokenHits) if 
 // -------------------------------------------------------------
 let SETTINGS = { ...DEFAULT_SETTINGS };
 const getSettings = () => SETTINGS;
+// بيانات الدفع التي تظهر للزبون (سداد / تداول / تحويل مصرفي) — معلومات عامة يضبطها المكتب من اللوحة
+const PAY_EMPTY = { sadad: { number: '', name: '' }, tadawul: { number: '', name: '' }, bank: { bank: '', name: '', account: '', iban: '' } };
+const publicPayment = () => {
+  const p = getSettings().payment || {};
+  return {
+    sadad: { ...PAY_EMPTY.sadad, ...(p.sadad || {}) },
+    tadawul: { ...PAY_EMPTY.tadawul, ...(p.tadawul || {}) },
+    bank: { ...PAY_EMPTY.bank, ...(p.bank || {}) },
+  };
+};
+// IBAN: تحقق الصيغة + رقم التحقق (mod 97) — الآيبان الليبي LY ثم 23 رقماً
+function validIban(iban) {
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(iban)) return false;
+  if (iban.startsWith('LY') && !/^LY\d{23}$/.test(iban)) return false;
+  const s = (iban.slice(4) + iban.slice(0, 4)).replace(/[A-Z]/g, c => String(c.charCodeAt(0) - 55));
+  let r = 0; for (const ch of s) r = (r * 10 + Number(ch)) % 97;
+  return r === 1;
+}
+function cleanPayment(body) {
+  const txt = (v, max) => String(v ?? '').replace(/[\u0000-\u001F<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+  const num = v => toAsciiDigits(v).replace(/[\s-]/g, '').trim();
+  const cur = publicPayment(), b = body || {};
+  const out = {
+    sadad: { number: num(b.sadad?.number ?? cur.sadad.number), name: txt(b.sadad?.name ?? cur.sadad.name, 80) },
+    tadawul: { number: num(b.tadawul?.number ?? cur.tadawul.number), name: txt(b.tadawul?.name ?? cur.tadawul.name, 80) },
+    bank: {
+      bank: txt(b.bank?.bank ?? cur.bank.bank, 80), name: txt(b.bank?.name ?? cur.bank.name, 80),
+      account: num(b.bank?.account ?? cur.bank.account), iban: num(b.bank?.iban ?? cur.bank.iban).toUpperCase(),
+    },
+  };
+  const errs = [];
+  for (const [k, label] of [['sadad', 'سداد'], ['tadawul', 'تداول']]) {
+    if (out[k].number && !/^\+?\d{6,20}$/.test(out[k].number)) errs.push(`رقم ${label} غير صالح (أرقام فقط، من 6 إلى 20 رقماً)`);
+  }
+  if (out.bank.account && !/^\d{6,30}$/.test(out.bank.account)) errs.push('رقم الحساب المصرفي غير صالح (أرقام فقط)');
+  if (out.bank.iban && !validIban(out.bank.iban)) errs.push('رقم الآيبان غير صحيح — الآيبان الليبي يبدأ بـ LY ثم 23 رقماً، تأكد من نسخه كاملاً');
+  return { out, errs };
+}
 async function saveSettings(next) {
   await store.saveSettings(next);
   SETTINGS = { ...next };
@@ -431,7 +469,7 @@ async function validateBooking(body) {
   if (email && (!EMAIL_RE.test(email) || email.length > 120)) errors.push('البريد الإلكتروني غير صالح');
 
   const method = b.paymentMethod;
-  if (!['sadad', 'tadawul', 'cod'].includes(method)) errors.push('طريقة الدفع غير صالحة');
+  if (!['sadad', 'tadawul', 'bank', 'cod'].includes(method)) errors.push('طريقة الدفع غير صالحة');
 
   let phone = null; // هاتف المحفظة — لسداد وتداول فقط
   if (method === 'sadad' || method === 'tadawul') {
@@ -444,6 +482,11 @@ async function validateBooking(body) {
   return { errors, data: { tripType, out, ret, counts, passengers, contact_phone, email, method, phone, holdId } };
 }
 
+// رقم مرجعي مميز لعملية الدفع (يُكتب في البيان مع كود الحجز) — مثال: PAY-261105-7KQ2M
+function newPaymentRef() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return 'PAY-' + today().slice(2).replace(/-/g, '') + '-' + Array.from(crypto.randomBytes(5), x => alphabet[x % alphabet.length]).join('');
+}
 async function newRef() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   for (;;) {
@@ -625,7 +668,7 @@ app.get('/api/settings', (req, res) => {
   const s = getSettings();
   res.set('Cache-Control', 'no-store');
   // whatsapp فارغ = لم يُعيَّن رقم ← الواجهة تستخدم «مشاركة عبر واتساب»
-  res.json({ site_name: s.site_name, whatsapp: s.office_whatsapp });
+  res.json({ site_name: s.site_name, whatsapp: s.office_whatsapp, payment: publicPayment() });
 });
 
 // ---------- البحث الحقيقي ----------
@@ -667,6 +710,7 @@ app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزا
     const booking = {
       id: Date.now(),
       ref: await newRef(),
+      payment_ref: newPaymentRef(),
       trip_type: tripType,
       // حقول رحلة الذهاب في المستوى الأعلى — تستخدمها لوحة التحكم والتذكرة
       flight_id: out.id, airline: out.airline, origin: out.origin, destination: out.destination,
@@ -689,7 +733,7 @@ app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزا
     res.status(201).json({
       success: true,
       booking: {
-        ref: booking.ref, status: booking.status, booking_status: booking.booking_status, trip_type: tripType,
+        ref: booking.ref, payment_ref: booking.payment_ref, status: booking.status, booking_status: booking.booking_status, trip_type: tripType,
         fare_total: booking.fare_total, taxes: booking.taxes, service_fee: booking.service_fee,
         cod_fee: booking.cod_fee, total: booking.total,
       },
@@ -713,7 +757,7 @@ app.get('/api/track', rateLimit(20, 15 * 60_000, 'محاولات بحث كثير
       ref: b.ref, trip_type: b.trip_type, outbound: out, return: b.return || null, return_date: b.return_date,
       passengers: (b.passengers || []).map(p => ({ fullName: p.fullName, type: p.type || 'adult' })),
       adults: b.adults, children: b.children, infants: b.infants,
-      status: b.status, booking_status: b.booking_status, payment_method: b.payment_method,
+      status: b.status, booking_status: b.booking_status, payment_method: b.payment_method, payment_ref: b.payment_ref || null,
       fare_total: b.fare_total, taxes: b.taxes, service_fee: b.service_fee, cod_fee: b.cod_fee, total: b.total,
       created_at: b.created_at,
     },
@@ -729,14 +773,14 @@ app.get('/api/bookings', requireAdmin, ah(async (req, res) => {
 }));
 
 // ---------- تصدير الحجوزات إلى Excel (CSV) ----------
-const PAY_AR = { sadad: 'سداد', tadawul: 'تداول', cod: 'كاش عند الاستلام' };
+const PAY_AR = { sadad: 'سداد', tadawul: 'تداول', bank: 'تحويل مصرفي', cod: 'كاش عند الاستلام' };
 const PAY_ST_AR = { pending_cod: 'بانتظار الكاش', pending_payment: 'بانتظار الدفع', paid: 'مدفوع' };
 const BOOK_ST_AR = { pending: 'بانتظار التأكيد', confirmed: 'مؤكد', cancelled: 'ملغي' };
 
 app.get('/api/bookings/export.csv', requireAdmin, ah(async (req, res) => {
   const head = ['رقم الحجز', 'تاريخ الحجز', 'وقت الحجز', 'نوع الرحلة', 'شركة الطيران', 'رقم الرحلة', 'من', 'إلى',
     'تاريخ الذهاب', 'وقت الذهاب', 'تاريخ العودة', 'بالغين', 'أطفال', 'رضّع', 'أسماء المسافرين', 'أرقام الجوازات', 'انتهاء الجوازات', 'تواريخ الميلاد',
-    'هاتف التواصل', 'البريد', 'طريقة الدفع', 'هاتف المحفظة', 'حالة الدفع', 'حالة الحجز', 'تاريخ الدفع',
+    'هاتف التواصل', 'البريد', 'طريقة الدفع', 'مرجع الدفع', 'هاتف المحفظة', 'حالة الدفع', 'حالة الحجز', 'تاريخ الدفع',
     'سعر التذاكر', 'الضرائب', 'رسوم الخدمة', 'رسوم التحصيل', 'الإجمالي (د.ل)'];
   // نمنع Excel من تنفيذ خلية تبدأ بـ = + - @ (حماية من حقن الصيغ)
   const cell = v => {
@@ -756,7 +800,7 @@ app.get('/api/bookings/export.csv', requireAdmin, ah(async (req, res) => {
       b.origin, b.destination, b.depart_date, b.depart_time, b.return_date || '',
       b.adults ?? pax.length, b.children || 0, b.infants || 0,
       pax.map(p => p.fullName).join(' | '), pax.map(p => p.passport).join(' | '), pax.map(p => p.passport_expiry || '').join(' | '), pax.map(p => p.birth_date || '').join(' | '),
-      b.contact_phone, b.email, PAY_AR[b.payment_method] || b.payment_method, b.phone || '',
+      b.contact_phone, b.email, PAY_AR[b.payment_method] || b.payment_method, b.payment_ref || '', b.phone || '',
       PAY_ST_AR[b.status] || b.status, BOOK_ST_AR[b.booking_status] || b.booking_status, local(b.paid_at)[0],
       b.fare_total, b.taxes, b.service_fee, b.cod_fee || 0, b.total].map(cell).join(',');
   });
@@ -811,6 +855,11 @@ app.put('/api/settings', requireAdmin, ah(async (req, res) => {
     if (!(v > 0 && v < 1000)) return res.status(400).json({ error: `سعر ${label} غير صالح` });
     settings[k] = Math.round(v * 10000) / 10000;
   }
+  if (body.payment !== undefined) {
+    const { out, errs } = cleanPayment(body.payment);
+    if (errs.length) return res.status(400).json({ error: errs[0], details: errs });
+    settings.payment = out;
+  }
   if (body.whatsapp !== undefined) {
     const wa = normalizeWhatsapp(body.whatsapp);
     if (wa === null) return res.status(400).json({ error: 'رقم واتساب غير صالح. مثال: 0912345678 أو ‎+218912345678' });
@@ -818,7 +867,7 @@ app.put('/api/settings', requireAdmin, ah(async (req, res) => {
   }
   await saveSettings(settings);
   console.log(`[settings] site_name → ${settings.site_name} · office_whatsapp → ${settings.office_whatsapp || '(بدون رقم — وضع المشاركة)'}`);
-  res.json({ site_name: settings.site_name, whatsapp: settings.office_whatsapp, fx_usd: settings.fx_usd, fx_eur: settings.fx_eur });
+  res.json({ site_name: settings.site_name, whatsapp: settings.office_whatsapp, fx_usd: settings.fx_usd, fx_eur: settings.fx_eur, payment: publicPayment() });
 }));
 
 // ---------- الرحلات والأسعار (الإدارة) ----------
