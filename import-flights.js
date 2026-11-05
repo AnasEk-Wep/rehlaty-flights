@@ -187,7 +187,8 @@ const CURRENCY = { lyd: 'LYD', 'د.ل': 'LYD', دينار: 'LYD', usd: 'USD', $:
 function validateRows(rows, ctx) {
   const { AIRPORTS, toAscii, today, maxDate, clip } = ctx;
   const errors = [], groups = new Map();
-  const byCity = new Map(Object.entries(AIRPORTS).map(([k, a]) => [normHeader(a.city), k]));
+  const byCity = new Map(); // المدينة ← أول (أهم) مطار فيها؛ مثلاً إسطنبول ← IST وليس SAW
+  for (const [k, a] of Object.entries(AIRPORTS)) for (const n of [a.city, a.en]) { const h = normHeader(n || ''); if (h && !byCity.has(h)) byCity.set(h, k); }
   const airport = v => { const s = toAscii(v).trim(); return AIRPORTS[s.toUpperCase()] ? s.toUpperCase() : byCity.get(normHeader(s)) || null; };
   const num = v => { const s = toAscii(v).replace(/[,\s]/g, '').replace(/(د\.?ل|lyd|usd|eur|\$|€)/gi, ''); return s === '' ? NaN : Number(s); };
 
@@ -252,9 +253,15 @@ async function buildTemplate(AIRPORTS) {
   // أعمدة التاريخ والوقت كنص حتى لا يغيّرها Excel حسب إعدادات الجهاز
   for (const k of ['no', 'from', 'to', 'dep', 'arr', 'currency']) ws.getColumn(k).numFmt = '@';
   // قوائم منسدلة للمطارات والعملة (أول 500 سطر)
-  const codes = Object.keys(AIRPORTS).join(',');
+  // قائمة المطارات في ورقة مستقلة (القائمة طويلة على صيغة نصية، Excel يقبل 255 حرفاً فقط)
+  const ap = wb.addWorksheet('المطارات', { views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }] });
+  ap.columns = [{ header: 'الرمز', width: 10 }, { header: 'المدينة', width: 18 }, { header: 'الدولة', width: 16 }, { header: 'المطار', width: 32 }, { header: 'City', width: 22 }];
+  ap.getRow(1).font = { bold: true };
+  const list = Object.entries(AIRPORTS);
+  list.forEach(([k, a]) => ap.addRow([k, a.city, a.country || '', a.name || '', a.en || '']));
+  const range = `'المطارات'!$A$2:$A$${list.length + 1}`;
   for (let r = 2; r <= 501; r++) {
-    ws.getCell(`B${r}`).dataValidation = ws.getCell(`C${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${codes}"`] };
+    ws.getCell(`B${r}`).dataValidation = ws.getCell(`C${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [range] };
     ws.getCell(`I${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"LYD,USD,EUR"'] };
   }
 
@@ -264,7 +271,7 @@ async function buildTemplate(AIRPORTS) {
     ['طريقة التعبئة', ''],
     ['صف واحد', 'لكل رحلة في يوم معيّن. نفس رقم الرحلة في أيام مختلفة = صف لكل يوم.'],
     ['رقم الرحلة', 'رمز الشركة ثم الأرقام بدون مسافة، مثال: LN401 — رقم الرحلة الواحد له مسار واحد.'],
-    ['من / إلى', 'رمز المطار من القائمة: ' + Object.entries(AIRPORTS).map(([k, a]) => `${k} (${a.city})`).join('، ')],
+    ['من / إلى', 'رمز المطار (3 حروف) أو اسم المدينة بالعربي — القائمة الكاملة في ورقة «المطارات» (مثال: MJI طرابلس، IST إسطنبول، TUN تونس).'],
     ['تاريخ ووقت الإقلاع', 'بالتوقيت المحلي لمطار الإقلاع، هكذا: 2026-12-01 08:30'],
     ['تاريخ ووقت الوصول', 'بالتوقيت المحلي لمطار الوصول — مدة الرحلة تُحسب تلقائياً مع فرق التوقيت.'],
     ['السعر', 'سعر التذكرة للبالغ (رقم فقط). العملة دينار ليبي ما لم تكتب USD أو EUR في عمود العملة.'],
