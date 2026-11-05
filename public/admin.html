@@ -154,7 +154,7 @@
     </div>
     <div id="fmBody" class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-6 py-5" style="scroll-behavior:smooth;-webkit-overflow-scrolling:touch">
     <div class="grid gap-4 sm:grid-cols-3">
-      <label class="block sm:col-span-2"><span class="mb-1 block text-xs font-semibold">شركة الطيران</span><input name="airline" placeholder="الخطوط الليبية" class="fi" list="fmAirlines" autocomplete="off"></label>
+      <label class="block sm:col-span-2"><span class="mb-1 block text-xs font-semibold">شركة الطيران</span><input name="airline" placeholder="اكتب اسم أي شركة طيران أو اختر من الاقتراحات" class="fi" list="fmAirlines" autocomplete="off" maxlength="40" spellcheck="false"><span id="fmAirHint" class="mt-1 block text-[11px] text-ink-subtle">القائمة اقتراحات فقط — يمكنك كتابة أي شركة طيران.</span></label>
       <label class="block"><span class="mb-1 block text-xs font-semibold">رقم الرحلة</span><input name="no" dir="ltr" placeholder="LN401" class="fi uppercase"></label>
       <datalist id="fmAirlines"></datalist>
       <label class="block"><span class="mb-1 block text-xs font-semibold">رمز الشركة</span><input name="code" dir="ltr" maxlength="2" placeholder="LN" class="fi uppercase"></label>
@@ -808,8 +808,8 @@
     $('#fmDays').innerHTML = DAY_NAMES.map((n, d) => `<label class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm has-[:checked]:border-brand-600 has-[:checked]:bg-brand-50"><input type="checkbox" value="${d}" ${v.days.includes(d) ? 'checked' : ''} class="accent-brand-600">${n}</label>`).join('');
     $('#fmTiers').innerHTML = v.tiers.map(tierRow).join(''); refreshTiers();
     syncVia();
-    const names = [...new Set(FL.schedules.map(x => x.airline).filter(Boolean))];
-    $('#fmAirlines').innerHTML = names.map(n => `<option value="${esc(n)}"></option>`).join('');
+    $('#fmAirlines').innerHTML = airlineList().map(a => `<option value="${esc(a.name)}">${esc(a.code)}</option>`).join('');
+    delete fm.code.dataset.auto; delete fm.color.dataset.auto; if (s) fm.color.dataset.manual = 1; else delete fm.color.dataset.manual; airlineHint();
     const dated = !!(s && s.dated);
     $('#fmDaysBox').classList.toggle('hidden', dated);
     $('#fmDatedNote').classList.toggle('hidden', !dated);
@@ -825,13 +825,38 @@
   // أيام التشغيل: تحديد/إلغاء الكل
   $('#fmDaysAll').addEventListener('click', () => $('#fmDays').querySelectorAll('input').forEach(i => { i.checked = true; }));
   $('#fmDaysNone').addEventListener('click', () => $('#fmDays').querySelectorAll('input').forEach(i => { i.checked = false; }));
-  // اختيار شركة موجودة يعبّئ رمزها ولونها تلقائياً
-  fm.airline.addEventListener('change', () => {
-    if (editing) return;
-    const prev = FL.schedules.find(x => x.airline === fm.airline.value.trim()); if (!prev) return;
-    if (!fm.code.value || fm.code.dataset.auto) { fm.code.value = prev.code || ''; delete fm.code.dataset.auto; }
-    fm.color.value = prev.color || fm.color.value; if (!fm.bag.value) fm.bag.value = prev.bag || '';
+  // شركة الطيران: حقل حر + اقتراحات (شركات الرحلات المسجّلة أولاً ثم شركات معروفة)
+  const KNOWN_AIRLINES = [
+    ['الخطوط الليبية', 'LN', '#0F4C81'], ['الخطوط الأفريقية', '8U', '#1B8F3A'], ['طيران البراق', 'UZ', '#1D5BD8'], ['طيران الأجنحة الليبية', 'YL', '#8B1E3F'],
+    ['الخطوط التركية', 'TK', '#C8102E'], ['مصر للطيران', 'MS', '#0B3D91'], ['الخطوط التونسية', 'TU', '#E30613'], ['نوفل إير', 'BJ', '#D6001C'],
+    ['الخطوط الملكية المغربية', 'AT', '#C1272D'], ['الخطوط الجوية الجزائرية', 'AH', '#D7141A'], ['الخطوط الجوية القطرية', 'QR', '#5C0632'],
+    ['طيران الإمارات', 'EK', '#D71921'], ['الخطوط السعودية', 'SV', '#006C35'], ['الملكية الأردنية', 'RJ', '#7A6A3A'], ['طيران الاتحاد', 'EY', '#A57C1B'],
+    ['فلاي دبي', 'FZ', '#00447C'], ['العربية للطيران', 'G9', '#E21B22'], ['بيغاسوس', 'PC', '#E5A800'], ['الخطوط الجوية المالطية', 'KM', '#D21034'], ['آيتا إيروايز', 'AZ', '#0A3D91'],
+  ].map(([name, code, color]) => ({ name, code, color }));
+  const airKey = v => String(v || '').trim().replace(/\s+/g, ' ').replace(/[أإآ]/g, 'ا').replace(/ة$/g, 'ه').toLowerCase();
+  function airlineList() {
+    const seen = new Set(), out = [];
+    const add = a => { const k = airKey(a.name); if (k && !seen.has(k)) { seen.add(k); out.push(a); } };
+    FL.schedules.forEach(x => add({ name: x.airline, code: x.code, color: x.color, bag: x.bag }));
+    KNOWN_AIRLINES.forEach(add);
+    return out;
+  }
+  const findAirline = v => airlineList().find(a => airKey(a.name) === airKey(v));
+  function airlineHint() {
+    const v = fm.airline.value.trim(), a = v && findAirline(v);
+    $('#fmAirHint').textContent = !v ? 'القائمة اقتراحات فقط — يمكنك كتابة أي شركة طيران.'
+      : a ? `شركة معروفة — تمت تعبئة الرمز واللون تلقائياً (يمكنك تغييرهما).` : 'شركة جديدة — اكتب رمزها (حرفان) واختر لون الشعار.';
+  }
+  // اختيار شركة معروفة يعبّئ الرمز واللون فقط إذا لم يعدّلهما الموظف يدوياً؛ الشركة الجديدة لا تُفرض عليها أي قيمة
+  fm.airline.addEventListener('input', () => {
+    airlineHint();
+    const a = findAirline(fm.airline.value); if (!a) return;
+    if (!fm.code.value || fm.code.dataset.auto) { fm.code.value = a.code || ''; fm.code.dataset.auto = 1; }
+    if (fm.color.dataset.auto || !editing) { if (!fm.color.dataset.manual) { fm.color.value = a.color || fm.color.value; fm.color.dataset.auto = 1; } }
+    if (!fm.bag.value && a.bag) fm.bag.value = a.bag;
   });
+  fm.code.addEventListener('input', () => { delete fm.code.dataset.auto; fm.code.value = fm.code.value.toUpperCase(); });
+  fm.color.addEventListener('input', () => { delete fm.color.dataset.auto; fm.color.dataset.manual = 1; });
   const closeFlight = () => { fmModal.classList.add('hidden'); fmModal.classList.remove('flex'); document.body.style.overflow = ''; };
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !fmModal.classList.contains('hidden')) closeFlight(); });
   fmModal.addEventListener('click', e => { if (e.target === fmModal || e.target.closest('[data-fm-close]')) closeFlight(); });
