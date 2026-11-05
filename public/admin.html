@@ -230,28 +230,16 @@
   </div>
 </div>
 
-<!-- ================= تأكيد الحذف النهائي ================= -->
+<!-- ================= تأكيد الحذف النهائي (بضغطة واحدة) ================= -->
 <div id="delModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-navy-900/60 p-4" role="alertdialog" aria-modal="true" aria-labelledby="delTitle" aria-describedby="delText">
-  <form id="delForm" class="w-full max-w-md rounded-2xl bg-white p-6 shadow-card" novalidate>
-    <div class="flex items-start gap-3">
-      <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-red-50 text-xl text-red-600" aria-hidden="true">🗑</span>
-      <div>
-        <h2 id="delTitle" class="text-lg font-bold">حذف نهائي</h2>
-        <p id="delText" class="mt-1 text-sm leading-relaxed text-ink-muted"></p>
-      </div>
-    </div>
-    <div class="mt-4 rounded-xl bg-red-50 p-3 text-xs leading-relaxed text-red-700">⚠️ الحذف النهائي يمسح السجل من قاعدة البيانات ولا يمكن استرجاعه، ولا يظهر في التقارير أو ملف Excel. لإيقاف حجز مع الاحتفاظ بسجله استخدم «إلغاء الحجز».</div>
-    <label class="mt-4 block">
-      <span id="delHint" class="mb-1 block text-sm font-semibold"></span>
-      <input id="delInput" autocomplete="off" spellcheck="false" class="w-full rounded-xl border border-line px-4 py-3 text-sm outline-none focus:border-red-600">
-    </label>
+  <form id="delForm" class="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-card" novalidate>
+    <span class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-red-50 text-2xl text-red-600" aria-hidden="true">🗑</span>
+    <h2 id="delTitle" class="mt-3 text-lg font-bold">هل أنت متأكد من الحذف؟</h2>
+    <p id="delText" class="mt-2 text-sm leading-relaxed text-ink-muted"></p>
     <p id="delErr" class="mt-2 hidden text-xs text-red-600"></p>
-    <div class="mt-5 flex flex-wrap items-center justify-between gap-2">
-      <button type="button" id="delBackup" class="hidden text-sm font-semibold text-ok-700 hover:underline">⬇ تنزيل نسخة Excel أولاً</button>
-      <div class="mr-auto flex gap-2">
-        <button type="button" id="delCancel" class="rounded-lg px-4 py-2 text-sm font-semibold text-ink-muted hover:bg-canvas">تراجع</button>
-        <button id="delGo" disabled class="rounded-lg bg-red-600 px-5 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40">حذف نهائي</button>
-      </div>
+    <div class="mt-6 grid grid-cols-2 gap-2">
+      <button id="delGo" class="rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:cursor-wait disabled:opacity-60">نعم، احذف</button>
+      <button type="button" id="delCancel" class="rounded-xl border border-line px-4 py-3 text-sm font-semibold text-ink hover:bg-canvas">إلغاء</button>
     </div>
   </form>
 </div>
@@ -461,30 +449,22 @@
     }
   });
 
-  // ===== الحذف النهائي (حجز واحد أو تصفير السجل) — نافذة تأكيد بكتابة نص مطابق =====
+  // ===== الحذف النهائي (حجز واحد أو تصفير السجل) — نافذة تأكيد بسيطة: نعم / إلغاء =====
   const delModal = $('#delModal'); let DEL = null;
   function openDel(mode, ref) {
-    DEL = { mode, ref, need: mode === 'all' ? 'حذف الكل' : ref };
-    $('#delTitle').textContent = mode === 'all' ? 'تصفير سجل الحجوزات' : 'حذف الحجز نهائياً';
+    DEL = { mode, ref };
     $('#delText').innerHTML = mode === 'all'
-      ? `سيتم حذف <b>كل الحجوزات (${all.length})</b> نهائياً وتفريغ الجدول، وترجع كل المقاعد للرحلات.`
-      : `سيتم حذف الحجز <b dir="ltr">${esc(ref)}</b> وكل بياناته (المسافرون، الجوازات، الدفع) من المنظومة، وترجع مقاعده للرحلة.`;
-    $('#delHint').innerHTML = `للتأكيد اكتب: <b ${mode === 'all' ? '' : 'dir="ltr"'}>${esc(DEL.need)}</b>`;
-    $('#delInput').value = ''; $('#delInput').dir = mode === 'all' ? 'rtl' : 'ltr';
-    $('#delGo').disabled = true; $('#delErr').classList.add('hidden');
-    $('#delBackup').classList.toggle('hidden', mode !== 'all');
+      ? `سيتم حذف <b>كل الحجوزات (${all.length})</b> نهائياً وتفريغ السجل. لا يمكن التراجع عن هذه العملية.`
+      : `سيتم حذف الحجز <b dir="ltr">${esc(ref)}</b> وكل بياناته نهائياً، وترجع مقاعده للرحلة. لا يمكن التراجع عن هذه العملية.`;
+    $('#delGo').disabled = false; $('#delGo').textContent = 'نعم، احذف'; $('#delErr').classList.add('hidden');
     delModal.classList.remove('hidden'); delModal.classList.add('flex');
-    setTimeout(() => $('#delInput').focus(), 50);
+    setTimeout(() => $('#delCancel').focus(), 50);
   }
   const closeDel = () => { delModal.classList.add('hidden'); delModal.classList.remove('flex'); DEL = null; };
   function askDelete(ref) { openDel('one', ref); }
-  $('#delInput').addEventListener('input', () => {
-    const v = $('#delInput').value.trim(); $('#delGo').disabled = !DEL || (DEL.mode === 'all' ? v !== DEL.need : v.toUpperCase() !== DEL.need);
-  });
   $('#delCancel').addEventListener('click', closeDel);
   delModal.addEventListener('click', e => { if (e.target === delModal) closeDel(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !delModal.classList.contains('hidden')) closeDel(); });
-  $('#delBackup').addEventListener('click', () => $('#exportCsv').click());
   $('#wipeAll').addEventListener('click', () => { if (!all.length) return toast('السجل فارغ بالفعل'); openDel('all'); });
   $('#delForm').addEventListener('submit', async e => {
     e.preventDefault(); if (!DEL || $('#delGo').disabled) return;
@@ -497,8 +477,7 @@
         await api(`/api/bookings/${encodeURIComponent(ref)}`, { method: 'DELETE', body: JSON.stringify({ confirm: ref }) });
         all = all.filter(b => b.ref !== ref); render(); closeDel(); toast(`تم حذف الحجز ${ref} نهائياً`);
       }
-    } catch (err) { $('#delErr').textContent = err.message; $('#delErr').classList.remove('hidden'); $('#delGo').disabled = false; }
-    finally { $('#delGo').textContent = 'حذف نهائي'; }
+    } catch (err) { $('#delErr').textContent = err.message; $('#delErr').classList.remove('hidden'); $('#delGo').disabled = false; $('#delGo').textContent = 'نعم، احذف'; }
   });
 
   // ===== Ticket / PDF =====
