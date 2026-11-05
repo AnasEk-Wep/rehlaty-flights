@@ -456,6 +456,29 @@
   #printDoc .pd-cancel { margin-top: 10px; border: 1.5pt solid #B91C1C; color: #B91C1C; padding: 6px 10px; font-weight: 700; text-align: center; }
   #printDoc table, #printDoc .pd-meta { page-break-inside: avoid; break-inside: avoid; }
 </style>
+<style>
+  /* ===== البحث الذكي عن المطارات (من / إلى) ===== */
+  .ac-field:focus-within { z-index: 40; }
+  .ac-list { position: absolute; inset-inline: -1px; top: calc(100% + 8px); z-index: 60; max-height: min(60vh, 420px); overflow-y: auto; overscroll-behavior: contain;
+    margin: 0; padding: 6px; list-style: none; border-radius: 18px; background: rgb(var(--surface)); border: 1px solid rgb(var(--line));
+    box-shadow: 0 24px 50px -18px rgba(15,23,42,.35); text-align: right; }
+  @media (min-width: 640px) { .ac-list { inset-inline-start: -1px; inset-inline-end: auto; width: max(100%, 380px); } }
+  .ac-list[hidden] { display: none; }
+  .ac-head { padding: 8px 10px 4px; font-size: 11px; font-weight: 600; color: rgb(var(--ink-subtle)); letter-spacing: .02em; }
+  .ac-opt { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 12px; cursor: pointer; }
+  .ac-opt[aria-selected="true"], .ac-opt:hover { background: rgb(var(--brand-50)); }
+  .ac-ic { flex-shrink: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: rgb(var(--canvas)); color: rgb(var(--ink-muted)); }
+  .ac-opt[aria-selected="true"] .ac-ic { background: #2563EB; color: #fff; }
+  .ac-main { min-width: 0; flex: 1; line-height: 1.35; }
+  .ac-city { display: block; font-size: 15px; font-weight: 600; color: rgb(var(--ink)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ac-sub { display: block; font-size: 12px; color: rgb(var(--ink-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ac-code { flex-shrink: 0; font: 700 13px/1 "Readex Pro", system-ui, sans-serif; letter-spacing: .06em; color: rgb(var(--ink)); background: rgb(var(--canvas)); border: 1px solid rgb(var(--line)); border-radius: 8px; padding: 6px 7px; direction: ltr; }
+  .ac-live { display: inline-block; margin-inline-start: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 600; color: #047857; background: #ECFDF5; vertical-align: 1px; }
+  html.dark .ac-live { background: rgba(16,185,129,.15); color: #34D399; }
+  .ac-opt mark { background: none; color: #2563EB; font-weight: 700; }
+  .ac-empty { padding: 14px 10px; font-size: 13px; color: rgb(var(--ink-muted)); text-align: center; }
+  .ac-input::-webkit-search-cancel-button { display: none; }
+</style>
 </head>
 <body class="bg-canvas font-sans leading-relaxed text-ink antialiased">
 
@@ -559,16 +582,20 @@
 
       <div class="grid gap-3 lg:grid-cols-12">
         <div class="relative grid gap-3 sm:grid-cols-2 lg:col-span-5">
-          <label class="gfield block min-h-[72px] px-4 py-3">
+          <label class="gfield ac-field relative block min-h-[72px] px-4 py-3">
             <span class="flex items-center gap-1.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2.5 19h19v2h-19zM22.1 9.5c-.2-.8-1-1.3-1.8-1.1L15 9.8 8.1 3.4l-1.9.5 4.1 7.2-5 1.3-2-1.6-1.4.4 2.6 4.5 16.4-4.4c.8-.2 1.3-1 1.2-1.8z"/></svg>من</span>
-            <select id="sFrom" class="mt-1 w-full cursor-pointer bg-transparent py-0.5 text-base font-semibold text-ink outline-none"></select>
+            <select id="sFrom" class="sr-only" tabindex="-1" aria-hidden="true"></select>
+            <input id="sFromQ" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sFromList" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="مدينة أو مطار المغادرة" class="ac-input mt-1 w-full min-w-0 bg-transparent py-0.5 text-base font-semibold text-ink outline-none placeholder:font-normal placeholder:text-ink-subtle">
+            <ul id="sFromList" role="listbox" class="ac-list" hidden></ul>
           </label>
           <button type="button" id="swap" aria-label="تبديل المغادرة والوصول" class="absolute left-4 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 rotate-90 place-items-center rounded-full transition hover:rotate-[270deg] sm:left-1/2 sm:h-9 sm:w-9 sm:-translate-x-1/2 sm:rotate-0 sm:hover:rotate-180">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4 3 8l4 4"/><path d="M3 8h18"/><path d="m17 20 4-4-4-4"/><path d="M21 16H3"/></svg>
           </button>
-          <label class="gfield block min-h-[72px] px-4 py-3">
+          <label class="gfield ac-field relative block min-h-[72px] px-4 py-3">
             <span class="flex items-center gap-1.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2.5 19h19v2h-19zM9.8 13.6l4.4 1.2 5.3 1.4c.8.2 1.6-.3 1.8-1.1.2-.8-.3-1.6-1.1-1.8l-5.3-1.4-2.8-9.1-1.9-.5v8.3L5.2 9.3 4.3 6.9 2.9 6.5v5.2l1.6.4z"/></svg>إلى</span>
-            <select id="sTo" class="mt-1 w-full cursor-pointer bg-transparent py-0.5 text-base font-semibold text-ink outline-none"></select>
+            <select id="sTo" class="sr-only" tabindex="-1" aria-hidden="true"></select>
+            <input id="sToQ" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sToList" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="إلى أين تسافر؟" class="ac-input mt-1 w-full min-w-0 bg-transparent py-0.5 text-base font-semibold text-ink outline-none placeholder:font-normal placeholder:text-ink-subtle">
+            <ul id="sToList" role="listbox" class="ac-list" hidden></ul>
           </label>
         </div>
         <div class="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 lg:col-span-4">
@@ -997,6 +1024,135 @@
 </div>
 
 <script>
+/* =============================================================
+ *  بحث ذكي عن المطارات (Autocomplete) — يُستخدم في الموقع ولوحة التحكم
+ *  يطابق: اسم المدينة بالعربي (مع/بدون همزات)، الاسم الإنجليزي، رمز IATA، الدولة، اسم المطار
+ *  AirportAC.attach({ input, list, select, airports: () => ({CODE:{city,en,country,name}}),
+ *                     featured: () => [codes…], live: () => Set(codes), onPick(code) })
+ * ============================================================= */
+(function () {
+  'use strict';
+  const norm = v => String(v || '').toLowerCase()
+    .replace(/[ً-ْـ]/g, '')          // التشكيل والتطويل
+    .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+    .replace(/^ال/, '').replace(/\s+ال/g, ' ')        // «القاهرة» = «قاهرة»
+    .replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim();
+  const escH = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const PLANE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>';
+  const PIN = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>';
+
+  // فهرس مسبق (مرة واحدة لكل قائمة) حتى يبقى البحث فورياً
+  const cache = new WeakMap();
+  function index(A) {
+    if (cache.has(A)) return cache.get(A);
+    const rows = Object.entries(A).map(([code, a], order) => ({
+      code, a, order, c: code.toLowerCase(), city: norm(a.city), en: norm(a.en), country: norm(a.country), name: norm(a.name),
+    }));
+    cache.set(A, rows); return rows;
+  }
+  function score(r, q, qRaw) {
+    if (!q) return 0;
+    const word = s => s.split(' ').some(w => w.startsWith(q));
+    if (/^[a-z]{3}$/i.test(qRaw.trim()) && r.c === q) return 1000;   // رمز IATA مطابق تماماً
+    if (r.city === q) return 900;
+    if (r.c.startsWith(q)) return 800;
+    if (r.city.startsWith(q)) return 700;
+    if (r.en.startsWith(q)) return 650;
+    if (word(r.city) || word(r.en)) return 550;
+    if (r.country.startsWith(q) || word(r.country)) return 420;
+    if (r.name.includes(q)) return 330;
+    if (r.city.includes(q) || r.en.includes(q)) return 300;
+    return 0;
+  }
+  function highlight(text, qRaw) {
+    const t = String(text || ''), q = qRaw.trim(); if (!q) return escH(t);
+    // تظليل بسيط حسّاس للهمزات: نبحث عن الموضع في النسخة المطبّعة حرفاً بحرف
+    const n = t.toLowerCase().replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه');
+    const nq = q.toLowerCase().replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه');
+    const i = n.indexOf(nq); if (i < 0) return escH(t);
+    return escH(t.slice(0, i)) + '<mark>' + escH(t.slice(i, i + q.length)) + '</mark>' + escH(t.slice(i + q.length));
+  }
+
+  function attach(o) {
+    const { input, list, select } = o;
+    let items = [], active = -1, open = false;
+    const A = () => o.airports() || {};
+    const label = code => { const a = A()[code]; return a ? `${a.city} (${code})` : ''; };
+    const current = () => (select ? select.value : o.value && o.value()) || '';
+
+    function build(qRaw) {
+      const air = A(), rows = index(air), q = norm(qRaw), live = (o.live && o.live()) || new Set();
+      if (!q) {
+        const feat = (o.featured && o.featured()) || [];
+        const liveList = [...live].filter(c => air[c]);
+        const pop = feat.filter(c => air[c] && !live.has(c));
+        const groups = [];
+        if (liveList.length) groups.push([(typeof o.liveTitle === 'function' ? o.liveTitle() : o.liveTitle) || 'وجهات متوفرة لها رحلات', liveList]);
+        if (pop.length) groups.push(['الأكثر طلباً', pop]);
+        if (!groups.length) groups.push(['المطارات', rows.slice(0, 8).map(r => r.code)]);
+        return groups;
+      }
+      const res = rows.map(r => ({ r, s: score(r, q, qRaw) })).filter(x => x.s > 0)
+        .sort((x, y) => y.s - x.s || (live.has(y.r.code) - live.has(x.r.code)) || x.r.order - y.r.order).slice(0, 8);
+      return [[null, res.map(x => x.r.code)]];
+    }
+    function render(qRaw) {
+      const groups = build(qRaw), air = A(), live = (o.live && o.live()) || new Set(), excl = o.exclude && o.exclude();
+      items = []; let html = '';
+      for (const [title, codes] of groups) {
+        const cs = codes.filter(c => c !== excl);
+        if (!cs.length) continue;
+        if (title) html += `<li class="ac-head" role="presentation">${escH(title)}</li>`;
+        for (const c of cs) {
+          const a = air[c], i = items.length; items.push(c);
+          html += `<li id="${list.id}-o${i}" class="ac-opt" role="option" data-code="${c}" aria-selected="false">
+            <span class="ac-ic">${live.has(c) ? PLANE : PIN}</span>
+            <span class="ac-main"><span class="ac-city">${highlight(a.city, qRaw)}${live.has(c) ? '<span class="ac-live">رحلات متوفرة</span>' : ''}</span>
+            <span class="ac-sub">${highlight(a.name || '', qRaw)}${a.country ? ' · ' + escH(a.country) : ''}${a.en ? ' · <span dir="ltr">' + highlight(a.en, qRaw) + '</span>' : ''}</span></span>
+            <span class="ac-code">${highlight(c, qRaw)}</span></li>`;
+        }
+      }
+      list.innerHTML = html || `<li class="ac-empty" role="presentation">لا يوجد مطار بهذا الاسم — جرّب اسم المدينة أو رمز المطار (مثل MJI)</li>`;
+      setActive(items.length ? 0 : -1);
+    }
+    function setActive(i) {
+      active = i;
+      list.querySelectorAll('.ac-opt').forEach((el, k) => el.setAttribute('aria-selected', k === i));
+      const el = i >= 0 && list.querySelector(`#${list.id}-o${i}`);
+      if (el) { input.setAttribute('aria-activedescendant', el.id); el.scrollIntoView({ block: 'nearest' }); } else input.removeAttribute('aria-activedescendant');
+    }
+    function show() { if (open) return; open = true; list.hidden = false; input.setAttribute('aria-expanded', 'true');
+      if (matchMedia('(max-width: 639px)').matches) setTimeout(() => input.closest('label, .ac-wrap')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60); }
+    function hide() { open = false; list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); }
+    function pick(code) {
+      if (!code) return;
+      if (select) { select.value = code; select.dispatchEvent(new Event('change', { bubbles: true })); }
+      if (o.onPick) o.onPick(code);
+      input.value = label(code); hide();
+      if (o.next) o.next();
+    }
+    function sync() { if (document.activeElement !== input || !open) input.value = label(current()); }
+
+    input.addEventListener('focus', () => { render(''); show(); requestAnimationFrame(() => input.select()); });
+    input.addEventListener('input', () => { render(input.value); show(); });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!open) { render(input.value); show(); return; }
+        const n = items.length; if (n) setActive((active + (e.key === 'ArrowDown' ? 1 : -1) + n) % n); }
+      else if (e.key === 'Enter') { if (open && active >= 0) { e.preventDefault(); pick(items[active]); } }
+      else if (e.key === 'Escape') { if (open) { e.preventDefault(); e.stopPropagation(); hide(); input.value = label(current()); } }
+      else if (e.key === 'Tab') { if (open && active >= 0 && input.value.trim() && input.value !== label(current())) pick(items[active]); else hide(); }
+    });
+    // pointerdown حتى لا يضيع الاختيار بسبب blur قبل click
+    list.addEventListener('pointerdown', e => { e.preventDefault(); });
+    list.addEventListener('click', e => { const li = e.target.closest('.ac-opt'); if (li) pick(li.dataset.code); });
+    input.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== input) { hide(); input.value = label(current()); } }, 120));
+    sync();
+    return { sync, close: hide, label };
+  }
+  window.AirportAC = { attach, norm };
+})();
+</script>
+<script>
 'use strict';
 // =============================================================
 //  أدوات
@@ -1047,14 +1203,15 @@ const F = { max: Infinity, stops: new Set(), airlines: new Set(), times: new Set
 
   // خيارات المدن من المسارات المتوفرة فعلاً
   const origins = [...new Set(CFG.routes.map(r => r.origin))];
-  $('#sFrom').innerHTML = origins.map(c => `<option value="${c}">${esc(CFG.airports[c].city)} (${c})</option>`).join('');
+  const allOpts = Object.keys(CFG.airports).map(c => `<option value="${c}">${esc(CFG.airports[c].city)} (${c})</option>`).join('');
+  $('#sFrom').innerHTML = allOpts; $('#sTo').innerHTML = allOpts; // كل المطارات (البحث الذكي يعرض المتوفر أولاً)
 
   // قراءة البحث من الرابط (يسمح بمشاركة نتيجة بحث)
   const q = new URLSearchParams(location.search);
   for (const k of ['from', 'to', 'date', 'ret']) if (q.get(k)) S[k] = q.get(k);
   for (const k of ['adults', 'children', 'infants']) if (q.get(k)) S[k] = Math.max(k === 'adults' ? 1 : 0, Math.min(9, parseInt(q.get(k)) || 0));
   if (q.get('trip') === 'oneway') S.trip = 'oneway';
-  if (!origins.includes(S.from)) S.from = origins[0];
+  if (!CFG.airports[S.from]) S.from = origins[0] || Object.keys(CFG.airports)[0];
   if (!S.date || S.date < CFG.today) S.date = addDays(CFG.today, 7);
   if (!S.ret || S.ret < S.date) S.ret = addDays(S.date, 7);
   fillTo();
@@ -1064,12 +1221,13 @@ const F = { max: Infinity, stops: new Set(), airlines: new Set(), times: new Set
 })();
 
 function fillTo() {
+  // الوجهة حرة (أي مطار)؛ إذا كانت غير صالحة أو نفس المغادرة نقترح أول وجهة متوفرة من مدينة المغادرة
   const dests = CFG.routes.filter(r => r.origin === S.from).map(r => r.destination);
-  if (!dests.includes(S.to)) S.to = dests[0];
-  $('#sTo').innerHTML = dests.map(c => `<option value="${c}">${esc(CFG.airports[c].city)} (${c})</option>`).join('');
+  if (!CFG.airports[S.to] || S.to === S.from) S.to = dests[0] || CFG.routes.map(r => r.destination).find(c => c !== S.from) || Object.keys(CFG.airports).find(c => c !== S.from);
 }
 function syncForm() {
   $('#sFrom').value = S.from; $('#sTo').value = S.to;
+  if (window.acSync) acSync();
   $('#sDate').value = S.date; $('#sDate').min = CFG.today; $('#sDate').max = CFG.maxDate;
   $('#sRet').value = S.ret; $('#sRet').min = S.date; $('#sRet').max = CFG.maxDate;
   $$('.trip-tab').forEach(b => {
@@ -1082,20 +1240,35 @@ function syncForm() {
 }
 
 // ---------- نموذج البحث ----------
+// البحث الذكي عن المطارات: المدن التي لها رحلات تظهر أولاً، ثم الأكثر طلباً، ويمكن كتابة أي مدينة أو رمز IATA
+const AC_POPULAR = ['MJI', 'BEN', 'MRA', 'IST', 'TUN', 'CAI', 'DXB', 'AMM', 'JED', 'DOH', 'MLA', 'FCO'];
+const acFrom = AirportAC.attach({
+  input: $('#sFromQ'), list: $('#sFromList'), select: $('#sFrom'),
+  airports: () => CFG && CFG.airports, featured: () => AC_POPULAR,
+  live: () => new Set(CFG ? CFG.routes.map(r => r.origin) : []), liveTitle: 'مدن تنطلق منها رحلاتنا',
+  next: () => setTimeout(() => $('#sToQ').focus(), 30),
+});
+const acTo = AirportAC.attach({
+  input: $('#sToQ'), list: $('#sToList'), select: $('#sTo'),
+  airports: () => CFG && CFG.airports, featured: () => AC_POPULAR, exclude: () => S.from,
+  live: () => new Set(CFG ? CFG.routes.filter(r => r.origin === S.from).map(r => r.destination) : []),
+  liveTitle: () => `وجهات متوفرة من ${CFG.airports[S.from]?.city || ''}`,
+});
+function acSync() { acFrom.sync(); acTo.sync(); }
 $$('.trip-tab').forEach(b => b.addEventListener('click', () => { S.trip = b.dataset.trip; syncForm(); }));
-$('#sFrom').addEventListener('change', e => { S.from = e.target.value; fillTo(); });
+$('#sFrom').addEventListener('change', e => { S.from = e.target.value; fillTo(); syncForm(); });
 $('#sTo').addEventListener('change', e => { S.to = e.target.value; });
 $('#sDate').addEventListener('change', e => { S.date = e.target.value; if (S.ret < S.date) S.ret = S.date; syncForm(); });
 $('#sRet').addEventListener('change', e => { S.ret = e.target.value; });
 $('#swap').addEventListener('click', () => {
-  const back = CFG.routes.some(r => r.origin === S.to && r.destination === S.from);
-  if (!back) { showSearchErr('لا توجد رحلات بالاتجاه المعاكس حالياً'); return; }
-  [S.from, S.to] = [S.to, S.from]; fillTo(); $('#sTo').value = S.to = S.to; syncForm();
+  [S.from, S.to] = [S.to, S.from]; showSearchErr(''); syncForm();
 });
 $('#searchForm').addEventListener('submit', e => {
   e.preventDefault();
   if (!S.date || S.date < CFG.today) return showSearchErr('اختر تاريخ ذهاب صحيحاً');
   if (S.trip === 'round' && (!S.ret || S.ret < S.date)) return showSearchErr('تاريخ العودة يجب أن يكون بعد الذهاب');
+  if (!CFG.airports[S.from] || !CFG.airports[S.to]) return showSearchErr('اختر مدينة المغادرة والوصول من الاقتراحات');
+  if (S.from === S.to) return showSearchErr('اختر مدينتين مختلفتين للمغادرة والوصول');
   showSearchErr('');
   search();
   $('#routeTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1260,7 +1433,11 @@ function render() {
     b.className = 'flex-1 whitespace-nowrap rounded-sm px-2 py-2 transition sm:px-3 sm:py-1.5 ' + (on ? 'bg-brand-50 text-brand-700' : 'text-ink-muted hover:bg-canvas');
   });
   if (!results.length) {
-    $('#results').innerHTML = box('لا توجد رحلات في هذا اليوم', 'جرّب يوماً آخر من الأيام القريبة بالأعلى، أو غيّر الوجهة.');
+    const lg = stage === 'out' ? [S.from, S.to] : [S.to, S.from];
+    const served = CFG.routes.some(r => r.origin === lg[0] && r.destination === lg[1]);
+    $('#results').innerHTML = served ? box('لا توجد رحلات في هذا اليوم', 'جرّب يوماً آخر من الأيام القريبة بالأعلى، أو غيّر الوجهة.')
+      : box(`لا توجد رحلات مجدولة حالياً من ${esc(CFG.airports[lg[0]].city)} إلى ${esc(CFG.airports[lg[1]].city)}`, 'تواصل مع المكتب وسنبحث لك عن أفضل رحلة متاحة على هذا المسار.',
+        `<a class="btn-wa mx-auto mt-4 inline-flex w-auto px-6" target="_blank" rel="noopener" href="${waLink(`مرحباً ${siteName()}، أبحث عن رحلة من ${CFG.airports[lg[0]].city} (${lg[0]}) إلى ${CFG.airports[lg[1]].city} (${lg[1]}) بتاريخ ${S.date}${S.trip === 'round' ? ' والعودة ' + S.ret : ''} لعدد ${S.adults + S.children + S.infants} مسافر`)}">اطلب الحجز عبر واتساب</a>`);
     return;
   }
   const hour = t => parseInt(t);
