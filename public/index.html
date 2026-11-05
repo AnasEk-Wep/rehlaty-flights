@@ -230,6 +230,10 @@
   #closeFilters { display: grid; place-items: center; width: 44px; height: 44px; margin: -10px -10px -10px 0; }
   #clearFilters { padding: 10px 4px; }
   #paxDone { min-height: 46px; }
+  /* قائمة الركاب: تطفو فوق كل العناصر وتظهر كاملة (بالغين/أطفال/رضّع)، ومع شاشة قصيرة تتمرر من الداخل */
+  .hero { overflow: visible; overflow-x: clip; }
+  #paxPop { z-index: 999; max-height: min(72vh, 460px); overflow-y: auto; overscroll-behavior: contain; }
+  body:has(#paxPop:not([hidden])) #waFloat { opacity: 0; pointer-events: none; }
   #stopsBox label, #airlinesBox label { min-height: 40px; align-items: center; }
   #stopsBox input[type=checkbox], #airlinesBox input[type=checkbox], #agree { width: 20px; height: 20px; }
   #priceRange { height: 28px; }
@@ -439,7 +443,7 @@
 </script>
 
 <!-- ================= HERO (header + headline + search capsule) ================= -->
-<div class="hero relative overflow-hidden text-ink">
+<div class="hero relative overflow-x-clip text-ink">
   <!-- كلمة شفافة كبيرة في الخلفية (اسم الموقع) -->
   <div class="pointer-events-none absolute inset-x-0 top-24 hidden overflow-hidden md:block" aria-hidden="true">
     <div data-site-name class="hero-ghost px-6 text-[13vw]"></div>
