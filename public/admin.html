@@ -28,6 +28,23 @@
   #ticket { display: none; }
   .fi { width: 100%; border-radius: 12px; border: 1px solid #E2E8F0; padding: 10px 12px; font-size: 14px; outline: none; background: #fff; }
   .fi:focus { border-color: #2563EB; }
+  /* ===== بحث المطارات الذكي ===== */
+  .ac-wrap:focus-within { z-index: 30; }
+  .ac-list { position: absolute; inset-inline-start: 0; top: calc(100% + 6px); z-index: 40; width: max(100%, 320px); max-height: 300px; overflow-y: auto; overscroll-behavior: contain;
+    margin: 0; padding: 6px; list-style: none; border-radius: 14px; background: #fff; border: 1px solid #E3E9F2; box-shadow: 0 20px 44px -16px rgba(11,27,58,.35); }
+  .ac-list[hidden] { display: none; }
+  .ac-head { padding: 6px 8px 3px; font-size: 11px; font-weight: 600; color: #8C9AB0; }
+  .ac-opt { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 10px; cursor: pointer; }
+  .ac-opt[aria-selected="true"], .ac-opt:hover { background: #EEF4FF; }
+  .ac-ic { flex-shrink: 0; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: #F5F8FC; color: #5B6B84; }
+  .ac-opt[aria-selected="true"] .ac-ic { background: #2563EB; color: #fff; }
+  .ac-main { min-width: 0; flex: 1; line-height: 1.35; }
+  .ac-city { display: block; font-size: 14px; font-weight: 600; color: #0B1B3A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ac-sub { display: block; font-size: 11.5px; color: #5B6B84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ac-code { flex-shrink: 0; font: 700 12px/1 system-ui, sans-serif; letter-spacing: .06em; color: #0B1B3A; background: #F5F8FC; border: 1px solid #E3E9F2; border-radius: 7px; padding: 5px 6px; direction: ltr; }
+  .ac-live { display: inline-block; margin-inline-start: 6px; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 600; color: #15803D; background: #E9F8EF; }
+  .ac-opt mark { background: none; color: #2563EB; font-weight: 700; }
+  .ac-empty { padding: 12px 8px; font-size: 12.5px; color: #5B6B84; text-align: center; }
   /* ===== الجوال: الجداول تتحول لبطاقات (كل خلية مع عنوانها) ===== */
   @media (max-width: 767px) {
     .rtable { min-width: 0 !important; }
@@ -189,8 +206,10 @@
       <label class="block"><span class="mb-1 block text-xs font-semibold">رمز الشركة</span><input name="code" dir="ltr" maxlength="2" placeholder="LN" class="fi uppercase"></label>
       <label class="block"><span class="mb-1 block text-xs font-semibold">لون الشعار</span><input name="color" type="color" value="#2563EB" class="h-[46px] w-full cursor-pointer rounded-xl border border-line"></label>
       <label class="block"><span class="mb-1 block text-xs font-semibold">الوزن المسموح</span><input name="bag" placeholder="23 كغ" class="fi"></label>
-      <label class="block"><span class="mb-1 block text-xs font-semibold">من</span><select name="from" class="fi"></select></label>
-      <label class="block"><span class="mb-1 block text-xs font-semibold">إلى</span><select name="to" class="fi"></select></label>
+      <label class="ac-wrap relative block"><span class="mb-1 block text-xs font-semibold">من</span><select name="from" class="sr-only" tabindex="-1" aria-hidden="true"></select>
+        <input id="fmFromQ" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="fmFromList" autocomplete="off" spellcheck="false" placeholder="اكتب المدينة أو الرمز" class="fi"><ul id="fmFromList" role="listbox" class="ac-list" hidden></ul></label>
+      <label class="ac-wrap relative block"><span class="mb-1 block text-xs font-semibold">إلى</span><select name="to" class="sr-only" tabindex="-1" aria-hidden="true"></select>
+        <input id="fmToQ" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="fmToList" autocomplete="off" spellcheck="false" placeholder="اكتب المدينة أو الرمز" class="fi"><ul id="fmToList" role="listbox" class="ac-list" hidden></ul></label>
       <label class="block"><span class="mb-1 block text-xs font-semibold">المدة (دقيقة)</span><input name="dur" inputmode="numeric" dir="ltr" placeholder="165" class="fi"></label>
       <label class="block"><span class="mb-1 block text-xs font-semibold">الإقلاع</span><input name="dep" type="time" class="fi"></label>
       <label class="block"><span class="mb-1 block text-xs font-semibold">الوصول</span><input name="arr" type="time" class="fi"></label>
@@ -403,6 +422,135 @@
 <!-- ================= TICKET (للطباعة فقط) ================= -->
 <div id="ticket" class="font-sans text-ink"></div>
 
+<script>
+/* =============================================================
+ *  بحث ذكي عن المطارات (Autocomplete) — يُستخدم في الموقع ولوحة التحكم
+ *  يطابق: اسم المدينة بالعربي (مع/بدون همزات)، الاسم الإنجليزي، رمز IATA، الدولة، اسم المطار
+ *  AirportAC.attach({ input, list, select, airports: () => ({CODE:{city,en,country,name}}),
+ *                     featured: () => [codes…], live: () => Set(codes), onPick(code) })
+ * ============================================================= */
+(function () {
+  'use strict';
+  const norm = v => String(v || '').toLowerCase()
+    .replace(/[ً-ْـ]/g, '')          // التشكيل والتطويل
+    .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+    .replace(/^ال/, '').replace(/\s+ال/g, ' ')        // «القاهرة» = «قاهرة»
+    .replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim();
+  const escH = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const PLANE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>';
+  const PIN = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>';
+
+  // فهرس مسبق (مرة واحدة لكل قائمة) حتى يبقى البحث فورياً
+  const cache = new WeakMap();
+  function index(A) {
+    if (cache.has(A)) return cache.get(A);
+    const rows = Object.entries(A).map(([code, a], order) => ({
+      code, a, order, c: code.toLowerCase(), city: norm(a.city), en: norm(a.en), country: norm(a.country), name: norm(a.name),
+    }));
+    cache.set(A, rows); return rows;
+  }
+  function score(r, q, qRaw) {
+    if (!q) return 0;
+    const word = s => s.split(' ').some(w => w.startsWith(q));
+    if (/^[a-z]{3}$/i.test(qRaw.trim()) && r.c === q) return 1000;   // رمز IATA مطابق تماماً
+    if (r.city === q) return 900;
+    if (r.c.startsWith(q)) return 800;
+    if (r.city.startsWith(q)) return 700;
+    if (r.en.startsWith(q)) return 650;
+    if (word(r.city) || word(r.en)) return 550;
+    if (r.country.startsWith(q) || word(r.country)) return 420;
+    if (r.name.includes(q)) return 330;
+    if (r.city.includes(q) || r.en.includes(q)) return 300;
+    return 0;
+  }
+  function highlight(text, qRaw) {
+    const t = String(text || ''), q = qRaw.trim(); if (!q) return escH(t);
+    // تظليل بسيط حسّاس للهمزات: نبحث عن الموضع في النسخة المطبّعة حرفاً بحرف
+    const n = t.toLowerCase().replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه');
+    const nq = q.toLowerCase().replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه');
+    const i = n.indexOf(nq); if (i < 0) return escH(t);
+    return escH(t.slice(0, i)) + '<mark>' + escH(t.slice(i, i + q.length)) + '</mark>' + escH(t.slice(i + q.length));
+  }
+
+  function attach(o) {
+    const { input, list, select } = o;
+    let items = [], active = -1, open = false;
+    const A = () => o.airports() || {};
+    const label = code => { const a = A()[code]; return a ? `${a.city} (${code})` : ''; };
+    const current = () => (select ? select.value : o.value && o.value()) || '';
+
+    function build(qRaw) {
+      const air = A(), rows = index(air), q = norm(qRaw), live = (o.live && o.live()) || new Set();
+      if (!q) {
+        const feat = (o.featured && o.featured()) || [];
+        const liveList = [...live].filter(c => air[c]);
+        const pop = feat.filter(c => air[c] && !live.has(c));
+        const groups = [];
+        if (liveList.length) groups.push([(typeof o.liveTitle === 'function' ? o.liveTitle() : o.liveTitle) || 'وجهات متوفرة لها رحلات', liveList]);
+        if (pop.length) groups.push(['الأكثر طلباً', pop]);
+        if (!groups.length) groups.push(['المطارات', rows.slice(0, 8).map(r => r.code)]);
+        return groups;
+      }
+      const res = rows.map(r => ({ r, s: score(r, q, qRaw) })).filter(x => x.s > 0)
+        .sort((x, y) => y.s - x.s || (live.has(y.r.code) - live.has(x.r.code)) || x.r.order - y.r.order).slice(0, 8);
+      return [[null, res.map(x => x.r.code)]];
+    }
+    function render(qRaw) {
+      const groups = build(qRaw), air = A(), live = (o.live && o.live()) || new Set(), excl = o.exclude && o.exclude();
+      items = []; let html = '';
+      for (const [title, codes] of groups) {
+        const cs = codes.filter(c => c !== excl);
+        if (!cs.length) continue;
+        if (title) html += `<li class="ac-head" role="presentation">${escH(title)}</li>`;
+        for (const c of cs) {
+          const a = air[c], i = items.length; items.push(c);
+          html += `<li id="${list.id}-o${i}" class="ac-opt" role="option" data-code="${c}" aria-selected="false">
+            <span class="ac-ic">${live.has(c) ? PLANE : PIN}</span>
+            <span class="ac-main"><span class="ac-city">${highlight(a.city, qRaw)}${live.has(c) ? '<span class="ac-live">رحلات متوفرة</span>' : ''}</span>
+            <span class="ac-sub">${highlight(a.name || '', qRaw)}${a.country ? ' · ' + escH(a.country) : ''}${a.en ? ' · <span dir="ltr">' + highlight(a.en, qRaw) + '</span>' : ''}</span></span>
+            <span class="ac-code">${highlight(c, qRaw)}</span></li>`;
+        }
+      }
+      list.innerHTML = html || `<li class="ac-empty" role="presentation">لا يوجد مطار بهذا الاسم — جرّب اسم المدينة أو رمز المطار (مثل MJI)</li>`;
+      setActive(items.length ? 0 : -1);
+    }
+    function setActive(i) {
+      active = i;
+      list.querySelectorAll('.ac-opt').forEach((el, k) => el.setAttribute('aria-selected', k === i));
+      const el = i >= 0 && list.querySelector(`#${list.id}-o${i}`);
+      if (el) { input.setAttribute('aria-activedescendant', el.id); el.scrollIntoView({ block: 'nearest' }); } else input.removeAttribute('aria-activedescendant');
+    }
+    function show() { if (open) return; open = true; list.hidden = false; input.setAttribute('aria-expanded', 'true');
+      if (matchMedia('(max-width: 639px)').matches) setTimeout(() => input.closest('label, .ac-wrap')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60); }
+    function hide() { open = false; list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); }
+    function pick(code) {
+      if (!code) return;
+      if (select) { select.value = code; select.dispatchEvent(new Event('change', { bubbles: true })); }
+      if (o.onPick) o.onPick(code);
+      input.value = label(code); hide();
+      if (o.next) o.next();
+    }
+    function sync() { if (document.activeElement !== input || !open) input.value = label(current()); }
+
+    input.addEventListener('focus', () => { render(''); show(); requestAnimationFrame(() => input.select()); });
+    input.addEventListener('input', () => { render(input.value); show(); });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!open) { render(input.value); show(); return; }
+        const n = items.length; if (n) setActive((active + (e.key === 'ArrowDown' ? 1 : -1) + n) % n); }
+      else if (e.key === 'Enter') { if (open && active >= 0) { e.preventDefault(); pick(items[active]); } }
+      else if (e.key === 'Escape') { if (open) { e.preventDefault(); e.stopPropagation(); hide(); input.value = label(current()); } }
+      else if (e.key === 'Tab') { if (open && active >= 0 && input.value.trim() && input.value !== label(current())) pick(items[active]); else hide(); }
+    });
+    // pointerdown حتى لا يضيع الاختيار بسبب blur قبل click
+    list.addEventListener('pointerdown', e => { e.preventDefault(); });
+    list.addEventListener('click', e => { const li = e.target.closest('.ac-opt'); if (li) pick(li.dataset.code); });
+    input.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== input) { hide(); input.value = label(current()); } }, 120));
+    sync();
+    return { sync, close: hide, label };
+  }
+  window.AirportAC = { attach, norm };
+})();
+</script>
 <script>
   const $ = s => document.querySelector(s);
   const fmt = n => Number(n).toLocaleString('en-US');
@@ -1037,6 +1185,7 @@
     fm.from.innerHTML = opts; fm.to.innerHTML = opts;
     const v = s || { no: '', airline: '', code: '', color: '#2563EB', bag: '23 كغ', from: 'MJI', to: 'IST', dur: '', dep: '', arr: '', stops: 0, via: '', days: [0, 1, 2, 3, 4, 5, 6], currency: 'LYD', tiers: [{ seats: 12, price: '' }, { seats: 12, price: '' }], active: true };
     for (const k of ['no', 'airline', 'code', 'color', 'bag', 'from', 'to', 'dur', 'dep', 'arr', 'via', 'currency']) fm[k].value = v[k] ?? '';
+    acFm.from.sync(); acFm.to.sync();
     fm.stops.value = String(v.stops || 0); fm.active.checked = v.active !== false;
     fm.no.readOnly = !!s; fm.no.classList.toggle('bg-canvas', !!s);
     $('#fmDays').innerHTML = DAY_NAMES.map((n, d) => `<label class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm has-[:checked]:border-brand-600 has-[:checked]:bg-brand-50"><input type="checkbox" value="${d}" ${v.days.includes(d) ? 'checked' : ''} class="accent-brand-600">${n}</label>`).join('');
@@ -1091,6 +1240,16 @@
   });
   fm.code.addEventListener('input', () => { delete fm.code.dataset.auto; fm.code.value = fm.code.value.toUpperCase(); });
   fm.color.addEventListener('input', () => { delete fm.color.dataset.auto; fm.color.dataset.manual = 1; });
+  // بحث المطارات الذكي (من / إلى): المطارات المستخدمة في جدولك أولاً
+  const usedAirports = () => new Set(FL.schedules.flatMap(x => [x.from, x.to]));
+  const acFm = {
+    from: AirportAC.attach({ input: $('#fmFromQ'), list: $('#fmFromList'), select: fm.from, airports: () => FL && FL.airports,
+      featured: () => ['MJI', 'BEN', 'MRA', 'SEB', 'IST', 'TUN', 'CAI', 'DXB', 'AMM', 'JED'], live: usedAirports, liveTitle: 'مطارات في جدول رحلاتك',
+      next: () => setTimeout(() => $('#fmToQ').focus(), 30) }),
+    to: AirportAC.attach({ input: $('#fmToQ'), list: $('#fmToList'), select: fm.to, airports: () => FL && FL.airports,
+      featured: () => ['IST', 'TUN', 'CAI', 'DXB', 'AMM', 'JED', 'MLA', 'DOH', 'FCO', 'MJI', 'BEN'], live: usedAirports, liveTitle: 'مطارات في جدول رحلاتك',
+      exclude: () => fm.from.value }),
+  };
   const closeFlight = () => { fmModal.classList.add('hidden'); fmModal.classList.remove('flex'); document.body.style.overflow = ''; };
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !fmModal.classList.contains('hidden')) closeFlight(); });
   fmModal.addEventListener('click', e => { if (e.target === fmModal || e.target.closest('[data-fm-close]')) closeFlight(); });
