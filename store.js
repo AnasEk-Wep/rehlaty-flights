@@ -127,6 +127,7 @@ function jsonStore() {
       return next.length !== list.length;
     },
     async seatsSold(ids) { return ids.length ? countSeats(all(), ids) : {}; },
+    async ping() { return true; },
     describe() { return `ملفات JSON (${path.basename(BOOKINGS_FILE)}) — للتجربة المحلية فقط`; },
   };
 }
@@ -140,6 +141,8 @@ function mongoStore(uri) {
   const client = new MongoClient(uri, {
     serverSelectionTimeoutMS: 15_000,
     maxPoolSize: 10,
+    retryWrites: true,                              // إعادة محاولة الكتابة تلقائياً عند انقطاع قصير
+    writeConcern: { w: 'majority', journal: true }, // لا تُعتبر الكتابة ناجحة إلا بعد حفظها على أغلب نسخ Atlas وفي السجل
     appName: 'rehlati-booking',
   });
   let bookings, settings, schedules;
@@ -204,6 +207,7 @@ function mongoStore(uri) {
       ).toArray();
       return countSeats(docs, ids);
     },
+    async ping() { await client.db(dbName).command({ ping: 1 }); return true; },
     describe() { return `MongoDB Atlas (قاعدة: ${dbName}) — دائم`; },
     client,
   };

@@ -1110,6 +1110,11 @@ app.use((err, req, res, next) => {
 // التشغيل: نتصل بالتخزين أولاً، ثم نفتح السيرفر
 // -------------------------------------------------------------
 async function start() {
+  // حماية: على Render القرص مؤقت ويُمسح مع كل إعادة تشغيل — لا نسمح بالعمل على ملفات JSON هناك
+  if (process.env.RENDER && store.kind !== 'mongo' && process.env.ALLOW_JSON_STORE !== '1') {
+    console.error('❌ MONGODB_URI غير مضبوط على Render — الحجوزات ستضيع عند إعادة التشغيل. أضِفه من Environment ثم أعد النشر.');
+    process.exit(1);
+  }
   try {
     await store.init();
     SETTINGS = await store.getSettings();
