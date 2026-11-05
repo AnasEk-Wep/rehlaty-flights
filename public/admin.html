@@ -309,6 +309,24 @@
         <p class="mt-2 text-[11px] leading-relaxed text-ink-muted">يتحقق النظام من صحة الآيبان تلقائياً قبل الحفظ (الليبي يبدأ بـ LY ثم 23 رقماً).</p>
       </fieldset>
     </div>
+    <div class="mt-6 border-t border-line pt-5">
+      <h3 class="text-sm font-bold">🔔 تنبيهات تيليغرام للحجوزات الجديدة</h3>
+      <p class="mt-1 text-xs leading-relaxed text-ink-muted">تصلك رسالة فورية على جوالك مع كل حجز جديد (رقم الحجز، الرحلة، المسافرون، الهاتف، المبلغ). أرقام الجوازات لا تُرسل.</p>
+      <p id="tgStatus" class="mt-3 rounded-lg bg-canvas p-3 text-xs leading-relaxed">جارٍ التحقق…</p>
+      <ol id="tgSteps" class="mt-3 hidden list-decimal space-y-1 pr-5 text-xs leading-relaxed text-ink-muted">
+        <li>افتح البوت في تيليغرام واضغط <b>Start</b> (أو أضفه لمجموعة الموظفين وأرسل فيها أي رسالة).</li>
+        <li>اضغط «🔍 اكتشاف تلقائي» ليظهر معرّف المحادثة، ثم «📨 إرسال تجربة» و«حفظ».</li>
+      </ol>
+      <label class="mt-3 block"><span class="mb-1 block text-xs font-semibold text-ink-muted">معرّف المحادثة (Chat ID) — يمكن أكثر من معرّف بفاصلة</span>
+        <input id="tgChat" dir="ltr" inputmode="numeric" maxlength="120" placeholder="مثال: 123456789 أو -1001234567890" class="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600 text-right tracking-wider"></label>
+      <div id="tgFound" class="mt-2 hidden flex-wrap gap-1.5"></div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button type="button" id="tgDetect" class="rounded-lg border border-line px-3 py-2 text-xs font-semibold hover:bg-canvas disabled:opacity-50">🔍 اكتشاف تلقائي</button>
+        <button type="button" id="tgTest" class="rounded-lg border border-line px-3 py-2 text-xs font-semibold hover:bg-canvas disabled:opacity-50">📨 إرسال تجربة</button>
+        <button type="button" id="tgSave" class="rounded-lg bg-navy-900 px-4 py-2 text-xs font-bold text-white hover:bg-navy-800 disabled:opacity-50">حفظ التنبيهات</button>
+      </div>
+      <p id="tgMsg" class="mt-2 hidden text-xs"></p>
+    </div>
     <p id="setErr" class="mt-2 hidden text-xs text-red-600"></p>
     <div class="mt-5 flex flex-wrap items-center justify-between gap-2">
       <a id="waTest" href="#" target="_blank" rel="noopener" class="hidden text-sm font-semibold text-ok-700 hover:underline">اختبار الرقم على واتساب ↗</a>
@@ -660,7 +678,47 @@
     try { const st = await (await fetch('/api/settings', { cache: 'no-store' })).json(); $('#nameInput').value = st.site_name || ''; applySiteName(st.site_name); renderWa(st.whatsapp); fillPayment(st.payment); }
     catch { $('#waStatus').textContent = 'تعذر قراءة الإعدادات'; }
     $('#waInput').focus();
+    loadTelegram();
   }
+  // ===== تنبيهات تيليغرام =====
+  const tgNum = v => String(v || '').replace(/[٠-٩]/g, d => d.charCodeAt(0) - 0x660).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 0x6F0).replace(/[،\s]+/g, ',').replace(/^,|,$/g, '');
+  const tgMsg = (t, ok = true) => { const m = $('#tgMsg'); m.textContent = t; m.className = `mt-2 text-xs ${ok ? 'text-ok-700' : 'text-red-600'}`; };
+  async function loadTelegram() {
+    $('#tgMsg').classList.add('hidden'); $('#tgFound').classList.add('hidden');
+    try {
+      const t = await api('/api/admin/telegram');
+      $('#tgChat').value = t.chat_id || '';
+      const on = t.configured;
+      ['tgDetect', 'tgTest', 'tgSave'].forEach(id => { $('#' + id).disabled = !on; });
+      $('#tgSteps').classList.toggle('hidden', !on || !!t.chat_id);
+      $('#tgStatus').innerHTML = !on
+        ? '⚠️ البوت غير مربوط بعد. أنشئ بوتاً من <b>@BotFather</b> في تيليغرام، ثم أضف رمزه في Render ← Environment باسم <code dir="ltr">TELEGRAM_BOT_TOKEN</code> وأعد النشر.'
+        : t.chat_id ? `✅ التنبيهات مفعّلة${t.bot ? ` عبر البوت <b dir="ltr">@${esc(t.bot)}</b>` : ''}.`
+        : `البوت جاهز${t.bot ? `: <a class="font-bold text-brand-700 underline" dir="ltr" target="_blank" rel="noopener" href="https://t.me/${esc(t.bot)}">@${esc(t.bot)}</a>` : ''} — بقي ربط المحادثة.`;
+    } catch (err) { $('#tgStatus').textContent = err.message; }
+  }
+  $('#tgDetect').addEventListener('click', async () => {
+    $('#tgDetect').disabled = true;
+    try {
+      const r = await api('/api/admin/telegram/detect', { method: 'POST' });
+      if (!r.chats.length) return tgMsg('لم نجد رسائل بعد — أرسل أي رسالة للبوت (أو في المجموعة) ثم اضغط اكتشاف مرة أخرى.', false);
+      if (r.chats.length === 1) $('#tgChat').value = r.chats[0].id;
+      $('#tgFound').innerHTML = r.chats.map(c => `<button type="button" data-tg="${esc(c.id)}" class="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100">${c.type === 'private' ? '👤' : '👥'} ${esc(c.title || c.id)} <span dir="ltr" class="text-ink-muted">${esc(c.id)}</span></button>`).join('');
+      $('#tgFound').classList.remove('hidden'); $('#tgFound').classList.add('flex');
+      tgMsg(r.chats.length === 1 ? 'تم العثور على المحادثة ✓ — اضغط «إرسال تجربة» ثم «حفظ».' : 'اختر المحادثة المطلوبة من القائمة.');
+    } catch (err) { tgMsg(err.message, false); } finally { $('#tgDetect').disabled = false; }
+  });
+  $('#tgFound').addEventListener('click', e => { const b = e.target.closest('[data-tg]'); if (b) $('#tgChat').value = b.dataset.tg; });
+  $('#tgTest').addEventListener('click', async () => {
+    $('#tgTest').disabled = true;
+    try { await api('/api/admin/telegram/test', { method: 'POST', body: JSON.stringify({ chat_id: tgNum($('#tgChat').value) }) }); tgMsg('تم إرسال رسالة التجربة ✓ — تحقق من تيليغرام.'); }
+    catch (err) { tgMsg(err.message, false); } finally { $('#tgTest').disabled = false; }
+  });
+  $('#tgSave').addEventListener('click', async () => {
+    $('#tgSave').disabled = true;
+    try { await api('/api/settings', { method: 'PUT', body: JSON.stringify({ telegram_chat_id: tgNum($('#tgChat').value) }) }); toast($('#tgChat').value.trim() ? 'تم حفظ التنبيهات' : 'تم إيقاف التنبيهات'); loadTelegram(); }
+    catch (err) { tgMsg(err.message, false); } finally { $('#tgSave').disabled = false; }
+  });
   // ===== بيانات الدفع (سداد / تداول / تحويل مصرفي) =====
   const PAY_FIELDS = [['paySadadNo', 'sadad', 'number'], ['paySadadName', 'sadad', 'name'], ['payTadawulNo', 'tadawul', 'number'], ['payTadawulName', 'tadawul', 'name'],
     ['payBankName', 'bank', 'bank'], ['payBankBenef', 'bank', 'name'], ['payBankAcc', 'bank', 'account'], ['payBankIban', 'bank', 'iban']];
