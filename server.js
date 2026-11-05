@@ -140,6 +140,49 @@ const SITE_NAME_MAX = 60;
 // اسم آمن للعرض: بدون وسوم HTML أو رموز تحكم
 const cleanSiteName = v => String(v ?? '').replace(/[<>\u0000-\u001F\u007F]/g, '').replace(/\s+/g, ' ').trim();
 
+// -------------------------------------------------------------
+// تنبيهات تيليغرام: رسالة فورية لجوال المكتب عند كل حجز جديد
+//  • TELEGRAM_BOT_TOKEN في Render ← Environment (سرّي، لا يظهر في اللوحة ولا في الواجهة)
+//  • معرّف المحادثة يُحفظ من لوحة التحكم ← الإعدادات (يمكن عدة معرّفات مفصولة بفاصلة)
+// -------------------------------------------------------------
+const TG_TOKEN = String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
+const TG_BASE = process.env.TELEGRAM_API_BASE || 'https://api.telegram.org'; // للاختبار المحلي فقط
+const TG_CHAT_RE = /^-?\d{5,20}$/;
+const tgHtml = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+async function tgCall(method, body) {
+  if (!TG_TOKEN) throw new Error('لم يُضبط TELEGRAM_BOT_TOKEN على السيرفر');
+  const r = await fetch(`${TG_BASE}/bot${TG_TOKEN}/${method}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}), signal: AbortSignal.timeout(8000),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!j.ok) throw new Error(j.description || `Telegram HTTP ${r.status}`);
+  return j.result;
+}
+const tgChats = () => String(getSettings().telegram_chat_id || '').split(',').map(x => x.trim()).filter(x => TG_CHAT_RE.test(x)).slice(0, 5);
+let TG_BOT = null; // اسم البوت (يُقرأ مرة واحدة)
+async function tgBotName() { if (!TG_TOKEN) return null; if (!TG_BOT) { try { TG_BOT = (await tgCall('getMe')).username; } catch (e) { return null; } } return TG_BOT; }
+function bookingTgText(b, base) {
+  const PAY = { sadad: 'سداد', tadawul: 'تداول', bank: 'تحويل مصرفي', cod: 'كاش عند الاستلام' };
+  const leg = (f, label) => f ? `${label}: <b>${tgHtml(f.origin)} ← ${tgHtml(f.destination)}</b> · ${tgHtml(f.depart_date)} · ${tgHtml(f.depart_time)}\n✈️ ${tgHtml(f.airline)}${f.flight_no ? ' ' + tgHtml(f.flight_no) : ''}` : '';
+  const pax = (b.passengers || []).map((p, i) => `${i + 1}. ${tgHtml(p.fullName)}${p.type === 'child' ? ' (طفل)' : p.type === 'infant' ? ' (رضيع)' : ''}`).join('\n');
+  return [
+    `🔔 <b>حجز جديد</b> — <code>${tgHtml(b.ref)}</code>`, '',
+    leg(b.outbound, b.return ? '🛫 الذهاب' : '🛫 الرحلة'), b.return ? leg(b.return, '🛬 العودة') : '', '',
+    `👥 المسافرون (${(b.passengers || []).length}):`, pax, '',
+    `📞 الهاتف: <code>${tgHtml(b.contact_phone)}</code>`,
+    `💳 الدفع: ${tgHtml(PAY[b.payment_method] || b.payment_method)}${b.payment_ref ? ` · <code>${tgHtml(b.payment_ref)}</code>` : ''}`,
+    `💰 الإجمالي: <b>${Number(b.total || 0).toLocaleString('en-US')} د.ل</b>`,
+    base ? `\n🗂 لوحة التحكم: ${tgHtml(base)}/admin.html` : '',
+  ].join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+// لا ينتظر الحجزُ التنبيه: أي فشل في تيليغرام يُسجَّل فقط ولا يؤثر على الزبون
+function notifyNewBooking(b, base) {
+  const chats = tgChats(); if (!TG_TOKEN || !chats.length) return;
+  const text = bookingTgText(b, base);
+  for (const chat_id of chats) tgCall('sendMessage', { chat_id, text, parse_mode: 'HTML', disable_web_page_preview: true })
+    .then(() => console.log(`[telegram] ✓ ${b.ref} → ${chat_id}`)).catch(e => console.warn(`[telegram] ✗ ${b.ref} → ${chat_id}: ${e.message}`));
+}
+
 // مسارات async: أي خطأ يذهب لمعالج الأخطاء بدل أن يُسقط السيرفر
 const ah = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -737,6 +780,7 @@ app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزا
     await store.insertBooking(booking);
     if (holdId) HOLDS.delete(holdId); // المقعد صار محجوزاً نهائياً
     console.log(`[new] ${booking.ref} · ${out.origin}→${out.destination}${ret ? ' (ذهاب وعودة)' : ''} · ${booking.pax_count} pax · ${booking.total} LYD · ${method}`);
+    notifyNewBooking(booking, process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`);
     res.status(201).json({
       success: true,
       booking: {
@@ -872,6 +916,32 @@ app.delete('/api/bookings', requireAdmin, ah(async (req, res) => {
 }));
 
 // ---------- تعديل الإعدادات (الإدارة) ----------
+// ---------- تيليغرام (الإدارة) ----------
+app.get('/api/admin/telegram', requireAdmin, ah(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ configured: !!TG_TOKEN, bot: await tgBotName(), chat_id: getSettings().telegram_chat_id || '' });
+}));
+// اكتشاف المعرّف تلقائياً: يرسل الموظف أي رسالة للبوت ثم يضغط «اكتشاف»
+app.post('/api/admin/telegram/detect', requireAdmin, ah(async (req, res) => {
+  try {
+    const ups = await tgCall('getUpdates', { limit: 50, timeout: 0, allowed_updates: ['message', 'my_chat_member', 'channel_post'] });
+    const seen = new Map();
+    for (const u of ups.reverse()) {
+      const c = (u.message || u.channel_post || u.my_chat_member || {}).chat; if (!c || seen.has(String(c.id))) continue;
+      seen.set(String(c.id), { id: String(c.id), title: c.title || [c.first_name, c.last_name].filter(Boolean).join(' ') || c.username || '', type: c.type });
+    }
+    res.json({ chats: [...seen.values()].slice(0, 5), bot: await tgBotName() });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+}));
+app.post('/api/admin/telegram/test', requireAdmin, rateLimit(10, 60_000), ah(async (req, res) => {
+  const ids = toAsciiDigits(req.body?.chat_id || getSettings().telegram_chat_id || '').split(/[,\s،]+/).filter(x => TG_CHAT_RE.test(x)).slice(0, 5);
+  if (!ids.length) return res.status(400).json({ error: 'أدخل معرّف المحادثة أولاً' });
+  try {
+    for (const chat_id of ids) await tgCall('sendMessage', { chat_id, text: `✅ تم ربط تنبيهات <b>${tgHtml(getSettings().site_name)}</b> بنجاح.\nستصلك هنا رسالة فورية مع كل حجز جديد.`, parse_mode: 'HTML' });
+    res.json({ ok: true, sent: ids.length });
+  } catch (e) { res.status(400).json({ error: `تعذر الإرسال: ${e.message}` }); }
+}));
+
 app.put('/api/settings', requireAdmin, ah(async (req, res) => {
   const body = req.body || {};
   const settings = { ...getSettings() };
@@ -893,6 +963,11 @@ app.put('/api/settings', requireAdmin, ah(async (req, res) => {
     if (errs.length) return res.status(400).json({ error: errs[0], details: errs });
     settings.payment = out;
   }
+  if (body.telegram_chat_id !== undefined) {
+    const ids = toAsciiDigits(body.telegram_chat_id).split(/[,\s،]+/).map(x => x.trim()).filter(Boolean);
+    if (ids.length > 5 || ids.some(x => !TG_CHAT_RE.test(x))) return res.status(400).json({ error: 'معرّف محادثة تيليغرام غير صالح (أرقام فقط، وقد يبدأ بـ -)' });
+    settings.telegram_chat_id = ids.join(',');
+  }
   if (body.whatsapp !== undefined) {
     const wa = normalizeWhatsapp(body.whatsapp);
     if (wa === null) return res.status(400).json({ error: 'رقم واتساب غير صالح. مثال: 0912345678 أو ‎+218912345678' });
@@ -900,7 +975,7 @@ app.put('/api/settings', requireAdmin, ah(async (req, res) => {
   }
   await saveSettings(settings);
   console.log(`[settings] site_name → ${settings.site_name} · office_whatsapp → ${settings.office_whatsapp || '(بدون رقم — وضع المشاركة)'}`);
-  res.json({ site_name: settings.site_name, whatsapp: settings.office_whatsapp, fx_usd: settings.fx_usd, fx_eur: settings.fx_eur, payment: publicPayment() });
+  res.json({ site_name: settings.site_name, whatsapp: settings.office_whatsapp, fx_usd: settings.fx_usd, fx_eur: settings.fx_eur, payment: publicPayment(), telegram_chat_id: settings.telegram_chat_id || '' });
 }));
 
 // ---------- الرحلات والأسعار (الإدارة) ----------
