@@ -478,6 +478,7 @@
   .ac-opt mark { background: none; color: #2563EB; font-weight: 700; }
   .ac-empty { padding: 14px 10px; font-size: 13px; color: rgb(var(--ink-muted)); text-align: center; }
   .ac-input::-webkit-search-cancel-button { display: none; }
+  @media print { .cx-box { display: none !important; } }
 </style>
 </head>
 <body class="bg-canvas font-sans leading-relaxed text-ink antialiased">
@@ -537,7 +538,7 @@
       </a>
       <nav class="flex items-center gap-1 text-sm font-medium text-ink-muted sm:gap-3">
         <a href="/" class="hidden rounded-xl px-3 py-2 text-ink sm:block">الرحلات</a>
-        <button type="button" data-track-open aria-label="تتبّع حجزي" class="flex min-h-[40px] items-center gap-1.5 rounded-xl px-2.5 transition hover:bg-ink/5 hover:text-ink sm:px-3"><svg class="min-[400px]:hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9a2 2 0 0 0 0 6v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 0 0-6V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/><path d="M14 5v2M14 11v2M14 17v2"/></svg><span class="hidden whitespace-nowrap min-[400px]:inline">تتبّع حجزي</span></button>
+        <button type="button" data-track-open aria-label="إدارة حجزي" class="flex min-h-[40px] items-center gap-1.5 rounded-xl px-2.5 transition hover:bg-ink/5 hover:text-ink sm:px-3"><svg class="min-[400px]:hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9a2 2 0 0 0 0 6v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 0 0-6V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/><path d="M14 5v2M14 11v2M14 17v2"/></svg><span class="hidden whitespace-nowrap min-[400px]:inline">إدارة حجزي</span></button>
         <a data-wa href="#" target="_blank" rel="noopener" hidden class="hidden rounded-full bg-[#2563EB] px-5 py-2.5 font-semibold text-white shadow-[0_10px_22px_-10px_rgba(37,99,235,.8)] transition hover:bg-[#1D4ED8] sm:inline-flex">تواصل معنا</a>
         <button type="button" id="themeToggle" aria-label="تفعيل الوضع الداكن" title="الوضع الداكن"
           class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-surface/80 text-ink-muted shadow-[0_4px_14px_-6px_rgba(17,24,39,.25)] ring-1 ring-line transition hover:text-ink">
@@ -705,7 +706,7 @@
   <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 text-sm md:px-8">
     <span data-site-name class="font-semibold text-white"></span>
     <div class="flex flex-wrap gap-x-6 gap-y-2">
-      <button type="button" data-track-open class="py-2.5 hover:text-white">تتبّع حجزي</button>
+      <button type="button" data-track-open class="py-2.5 hover:text-white">إدارة حجزي</button>
       <button type="button" data-terms-open class="py-2.5 hover:text-white">شروط الحجز والإلغاء</button>
       <a data-wa href="#" target="_blank" rel="noopener" hidden class="inline-block py-2.5 hover:text-white">واتساب</a>
     </div>
@@ -857,7 +858,7 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm4.5 12.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>
         <span id="waLabel">تأكيد الحجز عبر واتساب المكتب 💬</span>
       </a>
-      <p class="mx-auto mt-2 max-w-md text-xs leading-relaxed text-ink-subtle">الرسالة جاهزة بكل تفاصيل الحجز — اضغط إرسال فقط. ويمكنك متابعة الحالة وطباعة الملخص في أي وقت من «تتبّع حجزي».</p>
+      <p class="mx-auto mt-2 max-w-md text-xs leading-relaxed text-ink-subtle">الرسالة جاهزة بكل تفاصيل الحجز — اضغط إرسال فقط. ويمكنك متابعة الحالة أو طباعة الملخص أو إلغاء الحجز في أي وقت من «إدارة حجزي».</p>
       <!-- بطاقة صعود -->
       <div class="mx-auto mt-5 max-w-md overflow-hidden rounded-3xl border border-line bg-canvas/60 text-right">
         <div class="flex items-center justify-between gap-3 bg-gradient-to-l from-gold-500/15 to-transparent px-5 py-4">
@@ -885,7 +886,7 @@
       <div class="mx-auto mt-4 flex max-w-md flex-col gap-2 sm:flex-row">
         <button type="button" id="saveImgBtn" class="save-img flex flex-1 items-center justify-center gap-2 rounded-xl border border-line px-5 py-3 text-sm font-semibold transition hover:border-gold-500/50"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>حفظ كصورة</button>
         <button type="button" id="printDocBtn" class="flex flex-1 items-center justify-center gap-2 rounded-xl border border-line px-5 py-3 text-sm font-semibold transition hover:border-gold-500/50"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>طباعة</button>
-        <button type="button" id="trackFromSuccess" class="flex-1 rounded-xl border border-line px-5 py-3 text-sm font-semibold transition hover:border-gold-500/50">تتبّع حجزي</button>
+        <button type="button" id="trackFromSuccess" class="flex-1 rounded-xl border border-line px-5 py-3 text-sm font-semibold transition hover:border-gold-500/50">إدارة حجزي</button>
         <button type="button" data-close class="btn-ghost flex-1">إغلاق</button>
       </div>
     </div>
@@ -1004,7 +1005,7 @@
 <div id="trackModal" class="fixed inset-0 z-50 hidden items-end justify-center bg-night-950/75 backdrop-blur-md sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="tTitle">
   <div class="max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-t-[28px] border border-line bg-surface shadow-elevated sm:rounded-[28px]">
     <div class="no-print sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface px-6 py-4">
-      <h3 id="tTitle" class="text-h3">تتبّع حجزي</h3>
+      <h3 id="tTitle" class="text-h3">إدارة حجزي</h3>
       <button type="button" data-track-close aria-label="إغلاق" class="grid h-9 w-9 place-items-center rounded-full hover:bg-canvas">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
@@ -1013,8 +1014,8 @@
       <form id="trackForm" class="no-print grid gap-3 sm:grid-cols-[1fr_1fr_auto]" novalidate>
         <label class="block"><span class="field-label">رقم الحجز</span>
           <input id="tRef" dir="ltr" maxlength="16" placeholder="TKR-XXXXXX" autocomplete="off" data-digits class="field text-right uppercase tracking-wider"></label>
-        <label class="block"><span class="field-label">رقم الهاتف المسجّل</span>
-          <input id="tPhone" type="tel" dir="ltr" inputmode="tel" maxlength="14" placeholder="091XXXXXXX" data-digits class="field text-right tracking-wider"></label>
+        <label class="block"><span class="field-label">رقم الهاتف أو رقم جواز السفر</span>
+          <input id="tPhone" type="text" dir="ltr" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="091XXXXXXX أو A1234567" data-digits class="field text-right uppercase tracking-wider"></label>
         <button class="btn-primary self-end">بحث</button>
       </form>
       <p id="tErr" role="alert" hidden class="no-print mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700"></p>
@@ -2052,6 +2053,7 @@ function tLeg(f, label) {
 
 function showTracked(b) {
   const cancelled = b.booking_status === 'cancelled';
+  const requested = b.booking_status === 'cancellation_requested';
   const idx = BSTEPS.findIndex(s => s[0] === b.booking_status);
   const row = (k, v) => `<div class="flex justify-between gap-3"><span class="text-ink-muted">${k}</span><span class="font-semibold">${v}</span></div>`;
   $('#tResult').innerHTML = `<div class="space-y-4">
@@ -2059,7 +2061,9 @@ function showTracked(b) {
       <div><p class="text-xs text-white/70">${esc(siteName())} · ملخص الحجز</p><p class="text-xs text-white/70">تاريخ الحجز: ${new Date(b.created_at).toLocaleDateString('ar-LY')}</p></div>
       <div class="text-left"><p class="text-xs text-white/70">رقم الحجز</p><p class="text-h3 font-bold tracking-widest" dir="ltr">${esc(b.ref)}</p></div>
     </div>
-    ${cancelled ? '<p class="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">هذا الحجز ملغي. للاستفسار تواصل مع المكتب.</p>' :
+    ${b.pnr && !cancelled ? `<div class="flex items-center justify-between gap-3 rounded-xl border border-ok-600/30 bg-ok-50 p-3 text-sm"><span class="font-semibold text-ok-700">✓ التذكرة صادرة</span><span class="text-ink-muted">PNR: <b class="tracking-widest text-ink" dir="ltr">${esc(b.pnr)}</b></span></div>` : ''}
+    ${requested ? '<p class="rounded-xl bg-accent-50 p-3 text-sm font-semibold leading-relaxed text-accent-600">⏳ طلب الإلغاء قيد المراجعة لدى المكتب. سنتواصل معك بخصوص سياسة الاسترجاع والغرامات قبل تنفيذ الإلغاء.</p>' :
+      cancelled ? `<p class="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">هذا الحجز ملغي${b.cancelled_at ? ` بتاريخ ${new Date(b.cancelled_at).toLocaleDateString('ar-LY')}` : ''}. للاستفسار تواصل مع المكتب.</p>` :
       `<ol class="flex items-center gap-2 text-xs font-semibold">${BSTEPS.map(([k, n], i) => `
         <li class="flex items-center gap-2 ${i <= idx ? 'text-ink' : 'text-ink-subtle'}"><span class="grid h-6 w-6 place-items-center rounded-full ${i < idx || (i === idx && k === 'confirmed') ? 'bg-ok-600 text-white' : i === idx ? 'bg-brand-600 text-white' : 'bg-line'}">${i < idx || (i === idx && k === 'confirmed') ? '✓' : i + 1}</span>${n}</li>
         ${i < BSTEPS.length - 1 ? '<li class="h-px flex-1 bg-line"></li>' : ''}`).join('')}</ol>`}
@@ -2091,13 +2095,17 @@ function showTracked(b) {
 $('#trackForm').addEventListener('submit', async e => {
   e.preventDefault();
   $('#tErr').hidden = true;
-  const ref = toAscii($('#tRef').value).trim().toUpperCase(), phone = normPhone($('#tPhone').value);
+  // يقبل رقم الهاتف أو رقم جواز أحد المسافرين
+  const ref = toAscii($('#tRef').value).trim().toUpperCase(), raw = toAscii($('#tPhone').value).trim().toUpperCase();
+  const phone = normPhone(raw), passport = phone ? null : raw.replace(/\s+/g, '');
   $('#tRef').value = ref;
-  if (!ref || !phone) { $('#tErr').textContent = !ref ? 'أدخل رقم الحجز' : 'أدخل رقم هاتف ليبي صحيح (091–095)'; $('#tErr').hidden = false; return; }
-  $('#tPhone').value = phone;
+  if (!ref || (!phone && !PASSPORT_RE.test(passport || ''))) { $('#tErr').textContent = !ref ? 'أدخل رقم الحجز' : 'أدخل رقم الهاتف المسجّل (091–095) أو رقم جواز أحد المسافرين'; $('#tErr').hidden = false; return; }
+  $('#tPhone').value = phone || passport;
   $('#tResult').innerHTML = '<div class="h-40 animate-pulse rounded-2xl bg-canvas"></div>';
   try {
-    const { booking } = await api(`/api/track?${new URLSearchParams({ ref, phone })}`);
+    const ident = phone ? { phone } : { passport };
+    const { booking } = await api(`/api/track?${new URLSearchParams({ ref, ...ident })}`);
+    window.TRACK_ID = { ref, ...ident }; // للتحقق عند الإلغاء
     showTracked(booking);
   } catch (err) {
     $('#tResult').innerHTML = '';
@@ -2270,7 +2278,7 @@ if (trackParam) { const t = setInterval(() => { if (CFG) { clearInterval(t); ope
   // تتبّع حجزي: زر بيانات الدفع للحجوزات غير المدفوعة
   window.addEventListener('booking:tracked', e => {
     const b = e.detail || {};
-    if (b.status !== 'pending_payment' || b.booking_status === 'cancelled') return;
+    if (b.status !== 'pending_payment' || b.booking_status === 'cancelled' || b.booking_status === 'cancellation_requested') return;
     const box = document.querySelector('#tResult .no-print'); if (!box) return;
     const btn = document.createElement('button'); btn.type = 'button';
     btn.className = 'btn-accent'; btn.textContent = '💳 بيانات الدفع';
@@ -2411,10 +2419,71 @@ if (trackParam) { const t = setInterval(() => { if (CFG) { clearInterval(t); ope
   });
   $1('#saveImgBtn').addEventListener('click', e => { if (SUCCESS) saveTicket(SUCCESS, e.currentTarget); });
 
+  // ---------- «إدارة حجزي»: إلغاء الحجز من طرف الزبون ----------
+  // حجز غير مؤكد وبدون PNR ولم يُدفع ← يُلغى فوراً · حجز مؤكد/مُصدر/مدفوع ← «طلب إلغاء» يراجعه المكتب
+  window.addEventListener('booking:tracked', e => {
+    const b = e.detail || {}, pol = b.cancel_policy || {};
+    const actions = document.querySelector('#tResult .no-print'); if (!actions || (pol.mode !== 'auto' && pol.mode !== 'request')) return;
+    const known = window.TRACK_ID && window.TRACK_ID.ref === b.ref;
+    const why = pol.reason === 'issued' ? `تذكرتك <b>صادرة</b>${b.pnr ? ` (PNR: <b dir="ltr">${hx(b.pnr)}</b>)` : ''}`
+      : pol.reason === 'paid' ? 'تم <b>دفع</b> قيمة حجزك' : 'حجزك <b>مؤكد</b> من المكتب';
+    const box = document.createElement('div');
+    box.className = 'cx-box rounded-xl border border-line p-4'; // ليس .no-print حتى لا تلتقطه بقية الإضافات
+    box.innerHTML = `
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="text-sm"><b class="block">تريد إلغاء الحجز؟</b><span class="text-xs text-ink-muted">${pol.mode === 'auto' ? 'الحجز لم يُؤكد بعد — الإلغاء فوري وبدون رسوم.' : 'الإلغاء يمر بمراجعة المكتب وفق سياسة شركة الطيران.'}</span></div>
+        <button type="button" data-cx-open class="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50">إلغاء الحجز</button>
+      </div>
+      <form data-cx-panel hidden class="mt-4 space-y-3 border-t border-line pt-4" novalidate>
+        ${pol.mode === 'auto'
+          ? `<p class="rounded-xl bg-red-50 p-3 text-sm leading-relaxed text-red-700">سيُلغى الحجز <b dir="ltr">${hx(b.ref)}</b> <b>فوراً</b> وترجع المقاعد للرحلة. لا يمكن التراجع عن الإلغاء.</p>`
+          : `<p class="rounded-xl bg-accent-50 p-3 text-sm leading-relaxed text-accent-600">⚠️ ${why}، لذلك لا يُلغى تلقائياً. الإلغاء يخضع لـ<b>سياسة الاسترجاع وغرامات شركة الطيران</b>. سيُرسل طلبك للمكتب، ويتواصل معك بالتفاصيل والمبلغ المسترد قبل التنفيذ.</p>`}
+        ${known ? '' : `<label class="block"><span class="field-label">للتحقق: رقم الهاتف المسجّل أو رقم جواز أحد المسافرين</span>
+          <input data-cx-id dir="ltr" maxlength="20" autocomplete="off" autocapitalize="characters" placeholder="091XXXXXXX أو A1234567" class="field text-right uppercase tracking-wider"></label>`}
+        <label class="block"><span class="field-label">سبب الإلغاء (اختياري)</span>
+          <textarea data-cx-reason rows="2" maxlength="300" class="field resize-y" placeholder="مثال: تغيّر موعد سفري"></textarea></label>
+        <p data-cx-err role="alert" hidden class="rounded-xl bg-red-50 p-3 text-sm text-red-700"></p>
+        <div class="grid grid-cols-2 gap-2">
+          <button data-cx-go class="rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60">${pol.mode === 'auto' ? 'نعم، ألغِ الحجز' : 'إرسال طلب الإلغاء'}</button>
+          <button type="button" data-cx-no class="rounded-xl border border-line px-4 py-3 text-sm font-semibold">تراجع</button>
+        </div>
+      </form>`;
+    actions.before(box);
+    const panel = box.querySelector('[data-cx-panel]'), err = box.querySelector('[data-cx-err]'), go = box.querySelector('[data-cx-go]');
+    box.querySelector('[data-cx-open]').onclick = () => { panel.hidden = false; (box.querySelector('[data-cx-id]') || go).focus(); panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
+    box.querySelector('[data-cx-no]').onclick = () => { panel.hidden = true; err.hidden = true; };
+    panel.addEventListener('submit', async ev => {
+      ev.preventDefault(); err.hidden = true;
+      let ident = known ? { phone: window.TRACK_ID.phone, passport: window.TRACK_ID.passport } : null;
+      if (!ident) {
+        const raw = toAscii(box.querySelector('[data-cx-id]').value).trim().toUpperCase().replace(/\s+/g, '');
+        const ph = normPhone(raw);
+        if (!ph && !PASSPORT_RE.test(raw)) { err.textContent = 'أدخل رقم الهاتف المسجّل أو رقم جواز أحد المسافرين'; err.hidden = false; return; }
+        ident = ph ? { phone: ph } : { passport: raw };
+      }
+      go.disabled = true; const label = go.textContent; go.textContent = 'جارٍ الإرسال…';
+      try {
+        const r = await fetch('/api/track/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ref: b.ref, ...ident, reason: box.querySelector('[data-cx-reason]').value }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok && !j.booking) throw new Error(j.error || 'تعذر إرسال الطلب، حاول مرة أخرى');
+        window.TRACK_ID = { ref: b.ref, ...ident };
+        showTracked(j.booking);
+        const note = document.createElement('div');
+        note.setAttribute('role', 'status');
+        note.className = 'cx-box mb-4 rounded-xl p-4 text-sm font-semibold leading-relaxed ' + (j.result === 'cancelled' ? 'bg-ok-50 text-ok-700' : j.result === 'requested' ? 'bg-accent-50 text-accent-600' : 'bg-red-50 text-red-700');
+        note.textContent = j.result === 'cancelled' ? '✅ تم إلغاء حجزك بنجاح، ورجعت المقاعد للرحلة. نتمنى نخدمك في رحلة قادمة.'
+          : j.result === 'requested' ? '📨 تم إرسال طلب الإلغاء للمكتب. سيتواصل معك موظف قريباً لتوضيح سياسة الاسترجاع والغرامات قبل تنفيذ الإلغاء.'
+          : (j.error || '');
+        const res = $1('#tResult'); res.prepend(note); note.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } catch (e2) { err.textContent = e2.message === 'Failed to fetch' ? 'تعذر الاتصال بالسيرفر' : e2.message; err.hidden = false; go.disabled = false; go.textContent = label; }
+    });
+  });
+
   // ---------- «تتبّع حجزي» + الطباعة ----------
   window.addEventListener('booking:tracked', async e => {
     const b = e.detail || {}; const res = $1('#tResult'); if (!res) return;
-    const status = b.booking_status === 'cancelled' ? 'ملغي' : b.booking_status === 'confirmed' ? 'تم التأكيد' : 'بانتظار تأكيد المكتب';
+    const status = b.booking_status === 'cancelled' ? 'ملغي' : b.booking_status === 'cancellation_requested' ? 'طلب إلغاء قيد المراجعة' : b.booking_status === 'confirmed' ? 'تم التأكيد' : 'بانتظار تأكيد المكتب';
     const T = { ref: b.ref, token: b.track_token || '', site: site(), status, pay: (typeof PAY_NAMES !== 'undefined' && PAY_NAMES[b.payment_method]) || b.payment_method || '', total: money(b.total),
       legs: [legOf(b.outbound, b.return ? 'الذهاب' : 'الرحلة'), ...(b.return ? [legOf(b.return, 'العودة')] : [])], passengers: (b.passengers || []).map(p => ({ name: p.fullName, type: PT[p.type] || 'بالغ' })) };
     Object.assign(T, { payRef: b.payment_ref || '', created: b.created_at, cancelled: b.booking_status === 'cancelled', money: { fare: b.fare_total, fees: (b.taxes || 0) + (b.service_fee || 0) + (b.cod_fee || 0) } });
