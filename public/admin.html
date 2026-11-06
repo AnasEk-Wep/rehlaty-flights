@@ -125,6 +125,7 @@
     <button data-filter="pending"   class="tab rounded-full px-4 py-1.5">بانتظار التأكيد <span class="cnt"></span></button>
     <button data-filter="confirmed" class="tab rounded-full px-4 py-1.5">مؤكد <span class="cnt"></span></button>
     <button data-filter="cancelled" class="tab rounded-full px-4 py-1.5">ملغي <span class="cnt"></span></button>
+    <button data-filter="requested" class="tab rounded-full px-4 py-1.5">⚠ طلبات الإلغاء <span class="cnt"></span></button>
     <button data-filter="unpaid"    class="tab rounded-full px-4 py-1.5">غير مدفوعة <span class="cnt"></span></button>
   </div>
   <div class="mb-4 flex flex-wrap items-center gap-2 text-xs font-semibold">
@@ -569,6 +570,7 @@
     pending:   ['بانتظار التأكيد', 'bg-brand-50 text-brand-700'],
     confirmed: ['مؤكد',            'bg-ok-50 text-ok-700'],
     cancelled: ['ملغي',            'bg-red-50 text-red-700'],
+    cancellation_requested: ['⚠ مطلوب إلغاء', 'bg-[#FFEDD5] text-[#C2410C] ring-1 ring-[#FDBA74]'],
   };
   const badge = ([label, cls]) => `<span class="inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${cls}">${label}</span>`;
 
@@ -609,6 +611,7 @@
     confirmed: b => b.booking_status === 'confirmed',
     unpaid:    b => b.booking_status !== 'cancelled' && b.status !== 'paid',
     cancelled: b => b.booking_status === 'cancelled',
+    requested: b => b.booking_status === 'cancellation_requested',
   };
 
   function actionsFor(b) {
@@ -616,6 +619,15 @@
       `<button data-action="${action}" data-ref="${esc(b.ref)}" class="whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ${cls}">${label}</button>`;
     const out = [];
     const cancelled = b.booking_status === 'cancelled';
+    if (b.booking_status === 'cancellation_requested') {
+      out.push(btn('approve_cancel', '✓ تأكيد الإلغاء', 'bg-red-600 text-white hover:bg-red-700'));
+      out.push(btn('reject_cancel', '↩ رفض الطلب', 'bg-canvas text-ink hover:bg-line'));
+      const wa = waTo(b, 'cancel');
+      if (wa) out.push(`<a href="${esc(wa)}" target="_blank" rel="noopener" class="whitespace-nowrap rounded-xl bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1da851]">💬 واتساب الزبون</a>`);
+      out.push(btn('meta', '🎫 PNR / ملاحظة', 'bg-canvas text-ink hover:bg-line'));
+      out.push(btn('copy', '📋 نسخ بيانات المسافرين', 'bg-canvas text-ink hover:bg-line'));
+      return `<div class="flex flex-wrap gap-1.5">${out.join('')}</div>`;
+    }
     if (b.booking_status === 'pending') out.push(btn('confirm', '✓ تأكيد الحجز', 'bg-ok-600 text-white hover:bg-[#059669]'));
     if (!cancelled && b.status !== 'paid') out.push(btn('mark_paid', '💵 تم استلام الدفع', 'bg-ok-50 text-ok-700 hover:bg-ok-600 hover:text-white'));
     if (!cancelled) out.push(btn('meta', b.pnr ? '🎫 PNR / ملاحظة' : '🎫 إصدار: PNR', b.pnr ? 'bg-canvas text-ink hover:bg-line' : 'bg-brand-50 text-brand-700 hover:bg-brand-100'));
@@ -630,7 +642,7 @@
   const normQ = v => String(v || '').replace(/[\u0660-\u0669]/g, d => d.charCodeAt(0) - 0x660).replace(/[\u06F0-\u06F9]/g, d => d.charCodeAt(0) - 0x6F0)
     .toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim();
   // رابط واتساب مباشر للمسافر مع تفاصيل حجزه
-  function waTo(b) {
+  function waTo(b, kind) {
     let d = String(b.contact_phone || '').replace(/\D/g, '');
     if (!d) return '';
     if (d.startsWith('00')) d = d.slice(2);
@@ -638,6 +650,11 @@
     const o = b.outbound || {};
     const lead = (b.passengers && b.passengers[0] && b.passengers[0].fullName) || '';
     const st = { pending: 'بانتظار التأكيد', confirmed: 'مؤكد ✅', cancelled: 'ملغي' }[b.booking_status] || '';
+    if (kind === 'cancel') {
+      const t = [`مرحباً ${lead}،`, `معك ${SITE_NAME || 'مكتب الحجز'} بخصوص طلب إلغاء حجزك رقم ${b.ref}${b.pnr ? ` (PNR: ${b.pnr})` : ''}.`,
+        'وصلنا طلبك، والإلغاء يخضع لسياسة الاسترجاع وغرامات شركة الطيران. سنوضح لك المبلغ المسترد قبل التنفيذ — هل تؤكد رغبتك في الإلغاء؟'];
+      return `https://wa.me/${d}?text=${encodeURIComponent(t.join('\n'))}`;
+    }
     const lines = [
       `مرحباً ${lead}،`, `معك ${SITE_NAME || 'مكتب الحجز'} بخصوص حجزك رقم ${b.ref}`,
       `✈️ ${b.airline || o.airline || ''}${(b.flight_no || o.flight_no) ? ' ' + (b.flight_no || o.flight_no) : ''}: ${b.origin || o.origin || ''} ← ${b.destination || o.destination || ''}`,
@@ -673,7 +690,8 @@
     document.querySelectorAll('#tabs .tab').forEach(t => {
       const on = t.dataset.filter === filter;
       t.setAttribute('aria-selected', on);
-      t.className = 'tab rounded-full px-4 py-1.5 ' + (on ? 'bg-navy-900 text-white' : 'bg-white text-ink-muted shadow-card hover:text-ink');
+      const hot = t.dataset.filter === 'requested' && all.some(FILTERS.requested);
+      t.className = 'tab rounded-full px-4 py-1.5 ' + (on ? (hot ? 'bg-[#C2410C] text-white' : 'bg-navy-900 text-white') : hot ? 'bg-[#FFEDD5] text-[#C2410C] shadow-card ring-1 ring-[#FDBA74]' : 'bg-white text-ink-muted shadow-card hover:text-ink');
       t.querySelector('.cnt').textContent = `(${all.filter(FILTERS[t.dataset.filter]).length})`;
     });
 
@@ -700,7 +718,7 @@
         <td class="px-4 py-3"><span class="font-semibold">${esc(b.airline)}</span><br><span class="whitespace-nowrap text-xs text-ink-muted" dir="ltr">${esc(b.origin)} ${esc(b.depart_time)} → ${esc(b.destination)} ${esc(b.arrive_time)}</span></td>
         <td class="wide px-4 py-3">${b.contact_phone ? `<div class="mb-1 flex items-center gap-1.5 text-xs font-semibold text-brand-700"><span dir="ltr">📞 ${esc(b.contact_phone)}</span><a href="${esc(waTo(b))}" target="_blank" rel="noopener" class="inline-grid h-6 w-6 place-items-center rounded-full bg-[#25D366] text-white hover:bg-[#1da851]" title="مراسلة المسافر على واتساب مع تفاصيل الحجز" aria-label="واتساب ${esc(b.contact_phone)}">${WA_SVG}</a></div>` : ''}${b.passengers.map(p => `<div>${esc(p.fullName)} <span class="text-xs text-ink-subtle" dir="ltr" title="${esc(p.passport)}">${esc(maskPassport(p.passport))}</span>${p.birth_date ? ` <span class="text-[11px] text-ink-subtle" title="تاريخ الميلاد">· 🎂 ${esc(p.birth_date)}</span>` : ''}${p.passport_expiry ? ` <span class="text-[11px] text-ink-subtle" title="انتهاء الجواز">· ⏳ ${esc(p.passport_expiry)}</span>` : ''}</div>`).join('')}</td>
         <td class="px-4 py-3">${PAY[b.payment_method] || esc(b.payment_method)}${b.payment_ref ? `<br><span class="text-[11px] text-ink-muted" dir="ltr" title="مرجع الدفع">${esc(b.payment_ref)}</span>` : ''}${b.phone ? `<br><span class="text-xs text-ink-muted" dir="ltr">محفظة: ${esc(b.phone)}</span>` : ''}</td>
-        <td class="space-y-1 px-4 py-3">${badge(BOOKING_STATUS[b.booking_status] || [b.booking_status, 'bg-canvas'])}<br>${badge(cancelled && b.status === 'paid' ? ['مدفوع · يلزم استرداد', 'bg-red-50 text-red-700'] : (PAY_STATUS[b.status] || [b.status, 'bg-canvas']))}</td>
+        <td class="space-y-1 px-4 py-3">${badge(BOOKING_STATUS[b.booking_status] || [b.booking_status, 'bg-canvas'])}<br>${badge(cancelled && b.status === 'paid' ? ['مدفوع · يلزم استرداد', 'bg-red-50 text-red-700'] : (PAY_STATUS[b.status] || [b.status, 'bg-canvas']))}${b.booking_status === 'cancellation_requested' && b.cancel_request ? `<span class="mt-1 block max-w-[200px] text-[11px] leading-snug text-[#C2410C]">طلب من الزبون ${b.cancel_request.at ? utc(b.cancel_request.at).toLocaleString('ar-LY', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}${b.cancel_request.reason ? ` · «${esc(b.cancel_request.reason)}»` : ''}</span>` : ''}${b.cancelled_by === 'customer' ? '<span class="mt-1 block text-[11px] text-ink-subtle">ألغاه الزبون (قبل التأكيد)</span>' : ''}</td>
         <td class="px-4 py-3 font-bold">${fmt(b.total)} <span class="text-xs font-medium text-ink-muted">د.ل</span></td>
         <td class="wide act px-4 py-3">${actionsFor(b)}</td>
       </tr>`;
@@ -715,7 +733,8 @@
   }
 
   // ===== Actions =====
-  const ACTION_MSG = { confirm: 'تم تأكيد الحجز', cancel: 'تم إلغاء الحجز وإرجاع المقاعد للرحلة', mark_paid: 'تم تسجيل استلام الدفع' };
+  const ACTION_MSG = { confirm: 'تم تأكيد الحجز', cancel: 'تم إلغاء الحجز وإرجاع المقاعد للرحلة', mark_paid: 'تم تسجيل استلام الدفع',
+    approve_cancel: 'تم تأكيد الإلغاء وإرجاع المقاعد للرحلة', reject_cancel: 'تم رفض طلب الإلغاء — رجع الحجز لحالته السابقة' };
 
   $('#rows').addEventListener('click', async e => {
     const btn = e.target.closest('button[data-action]');
@@ -725,6 +744,10 @@
     if (action === 'delete') return askDelete(ref);
     if (action === 'meta') return openMeta(ref);
     if (action === 'copy') return copyPax(ref, btn);
+    if (action === 'approve_cancel' && !(await askConfirm({ icon: '⛔', tone: 'red', title: 'تأكيد إلغاء الحجز؟', go: 'نعم، ألغِ الحجز',
+      text: `سيتحول الحجز <b dir="ltr">${esc(ref)}</b> إلى «ملغي» وترجع مقاعده للرحلة. تأكد أنك ألغيت التذكرة في نظام شركة الطيران واتفقت مع الزبون على المبلغ المسترد.` }))) return;
+    if (action === 'reject_cancel' && !(await askConfirm({ icon: '↩️', tone: 'green', title: 'رفض طلب الإلغاء؟', go: 'نعم، ارفض الطلب',
+      text: `يبقى الحجز <b dir="ltr">${esc(ref)}</b> فعّالاً ويرجع لحالته السابقة. يُفضّل إبلاغ الزبون بالسبب عبر واتساب.` }))) return;
     if (action === 'cancel' && !(await askConfirm({ icon: '⛔', tone: 'red', title: 'إلغاء الحجز؟', go: 'نعم، ألغِ الحجز',
       text: `ستتحول حالة الحجز <b dir="ltr">${esc(ref)}</b> إلى «ملغي» وترجع مقاعده للرحلة تلقائياً. لا يمكن التراجع عن الإلغاء.` }))) return;
     if (action === 'mark_paid') {
@@ -818,12 +841,15 @@
   async function autoRefresh() {
     if (document.hidden || anyModalOpen() || $('#viewBookings').classList.contains('hidden')) return;
     const before = new Set(all.map(b => b.ref));
+    const wasReq = new Set(all.filter(FILTERS.requested).map(b => b.ref));
     try { await load(); } catch (e) { return; }
-    const fresh = before.size || all.length ? all.filter(b => !before.has(b.ref)) : [];
-    if (!fresh.length || !before.size) return;
-    FRESH.clear(); fresh.forEach(b => FRESH.add(b.ref)); render(); setTimeout(() => FRESH.clear(), 6000);
-    unseen += fresh.length; document.title = `(${unseen}) ${BASE_TITLE()}`; beep();
-    toast(`🔔 ${fresh.length === 1 ? 'حجز جديد' : fresh.length + ' حجوزات جديدة'}: ${fresh.map(b => b.ref).join('، ')}`);
+    if (!before.size) return;
+    const fresh = all.filter(b => !before.has(b.ref));
+    const reqs = all.filter(b => FILTERS.requested(b) && !wasReq.has(b.ref));
+    if (!fresh.length && !reqs.length) return;
+    FRESH.clear(); [...fresh, ...reqs].forEach(b => FRESH.add(b.ref)); render(); setTimeout(() => FRESH.clear(), 6000);
+    unseen += fresh.length + reqs.length; document.title = `(${unseen}) ${BASE_TITLE()}`; beep();
+    toast(reqs.length ? `⚠ طلب إلغاء جديد: ${reqs.map(b => b.ref).join('، ')}` : `🔔 ${fresh.length === 1 ? 'حجز جديد' : fresh.length + ' حجوزات جديدة'}: ${fresh.map(b => b.ref).join('، ')}`, !reqs.length);
   }
   setInterval(autoRefresh, 60_000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (unseen) { unseen = 0; document.title = BASE_TITLE(); } autoRefresh(); } });
