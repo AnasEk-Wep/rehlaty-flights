@@ -688,12 +688,24 @@ async function newRef() {
 const STATUS_ACTIONS = {
   confirm: {
     check: b => b.booking_status === 'cancelled' ? 'لا يمكن تأكيد حجز ملغي'
+              : b.booking_status === 'cancellation_requested' ? 'على الحجز طلب إلغاء — اقبل الطلب أو ارفضه أولاً'
               : b.booking_status === 'confirmed' ? 'الحجز مؤكد مسبقاً' : null,
     apply: b => { b.booking_status = 'confirmed'; b.confirmed_at = now(); },
   },
   cancel: {
     check: b => b.booking_status === 'cancelled' ? 'الحجز ملغي مسبقاً' : null,
     apply: b => { b.booking_status = 'cancelled'; b.cancelled_at = now(); },
+  },
+  // طلب إلغاء من الزبون (حجز مؤكد / مُصدر / مدفوع): الموظف يقبله أو يرفضه
+  approve_cancel: {
+    check: b => b.booking_status !== 'cancellation_requested' ? 'لا يوجد طلب إلغاء على هذا الحجز' : null,
+    apply: b => { b.booking_status = 'cancelled'; b.cancelled_at = now(); b.cancelled_by = 'customer_request';
+      b.cancel_request = { ...(b.cancel_request || {}), resolved: 'approved', resolved_at: now() }; },
+  },
+  reject_cancel: {
+    check: b => b.booking_status !== 'cancellation_requested' ? 'لا يوجد طلب إلغاء على هذا الحجز' : null,
+    apply: b => { const prev = b.cancel_request?.prev; b.booking_status = ['pending', 'confirmed'].includes(prev) ? prev : 'confirmed';
+      b.cancel_request = { ...(b.cancel_request || {}), resolved: 'rejected', resolved_at: now() }; },
   },
   mark_paid: {
     check: b => b.booking_status === 'cancelled' ? 'لا يمكن تسجيل دفع لحجز ملغي'
@@ -931,25 +943,98 @@ app.post('/api/bookings', rateLimit(10, 15 * 60_000, 'تم إرسال حجوزا
   }
 }));
 
-// ---------- تتبّع الحجز (رقم الحجز + الهاتف) — بدون أرقام الجوازات ----------
+// ---------- «إدارة حجزي»: التحقق برقم الحجز + (الهاتف أو رقم جواز أحد المسافرين) ----------
+const REF_RE = /^TKR-[A-Z0-9]{6}$/;
+async function findCustomerBooking(q) {
+  const ref = toAsciiDigits(q.ref).trim().toUpperCase();
+  if (!REF_RE.test(ref)) return null;
+  const phone = normalizePhone(q.phone);
+  if (phone) return store.findBookingByRefAndPhone(ref, phone);
+  const passport = toAsciiDigits(q.passport).trim().toUpperCase().replace(/\s+/g, '');
+  if (passport && PASSPORT_RE.test(passport)) {
+    const b = await store.findBooking(ref);
+    return b && (b.passengers || []).some(p => String(p.passport || '').toUpperCase() === passport) ? b : null;
+  }
+  return null;
+}
+// سياسة الإلغاء: تلقائي فقط إذا لم يُؤكَّد ولم يصدر PNR ولم يُدفع — وإلا يتحول لطلب يراجعه المكتب (حماية من الخسارة)
+function cancelPolicy(b) {
+  if (b.booking_status === 'cancelled') return { mode: 'none', reason: 'cancelled' };
+  if (b.booking_status === 'cancellation_requested') return { mode: 'none', reason: 'requested' };
+  const first = (b.outbound && b.outbound.depart_date) || b.depart_date;
+  if (first && first < today()) return { mode: 'none', reason: 'departed' };
+  if (b.booking_status === 'pending' && !b.pnr && b.status !== 'paid') return { mode: 'auto' };
+  return { mode: 'request', reason: b.pnr ? 'issued' : b.status === 'paid' ? 'paid' : 'confirmed' };
+}
+function trackView(b) {
+  const out = b.outbound || { airline: b.airline, origin: b.origin, destination: b.destination, depart_date: b.depart_date, depart_time: b.depart_time, arrive_time: b.arrive_time };
+  return {
+    ref: b.ref, trip_type: b.trip_type, outbound: out, return: b.return || null, return_date: b.return_date,
+    passengers: (b.passengers || []).map(p => ({ fullName: p.fullName, type: p.type || 'adult' })),
+    adults: b.adults, children: b.children, infants: b.infants,
+    status: b.status, booking_status: b.booking_status, payment_method: b.payment_method, payment_ref: b.payment_ref || null,
+    pnr: b.pnr || null, track_token: trackToken(b.ref),
+    fare_total: b.fare_total, taxes: b.taxes, service_fee: b.service_fee, cod_fee: b.cod_fee, total: b.total,
+    created_at: b.created_at, cancelled_at: b.cancelled_at || null,
+    cancel_request: b.cancel_request ? { at: b.cancel_request.at, resolved: b.cancel_request.resolved || null } : null,
+    cancel_policy: cancelPolicy(b),
+  };
+}
 app.get('/api/track', rateLimit(20, 15 * 60_000, 'محاولات بحث كثيرة، حاول بعد 15 دقيقة'), ah(async (req, res) => {
   const ref = toAsciiDigits(req.query.ref).trim().toUpperCase();
-  const phone = normalizePhone(req.query.phone);
   const tok = String(req.query.t || '');
-  const b = phone ? await store.findBookingByRefAndPhone(ref, phone)
-    : (tok && /^TKR-[A-Z0-9]{6}$/.test(ref) && validTrackToken(ref, tok)) ? await store.findBooking(ref) : null;
-  if (!b) return res.status(404).json({ error: 'لم نجد حجزاً بهذه البيانات. تأكد من رقم الحجز ورقم الهاتف.' });
-  const out = b.outbound || { airline: b.airline, origin: b.origin, destination: b.destination, depart_date: b.depart_date, depart_time: b.depart_time, arrive_time: b.arrive_time };
-  res.json({
-    booking: {
-      ref: b.ref, trip_type: b.trip_type, outbound: out, return: b.return || null, return_date: b.return_date,
-      passengers: (b.passengers || []).map(p => ({ fullName: p.fullName, type: p.type || 'adult' })),
-      adults: b.adults, children: b.children, infants: b.infants,
-      status: b.status, booking_status: b.booking_status, payment_method: b.payment_method, payment_ref: b.payment_ref || null,
-      track_token: trackToken(b.ref),
-      fare_total: b.fare_total, taxes: b.taxes, service_fee: b.service_fee, cod_fee: b.cod_fee, total: b.total,
-      created_at: b.created_at,
-    },
+  const b = (req.query.phone || req.query.passport) ? await findCustomerBooking(req.query)
+    : (tok && REF_RE.test(ref) && validTrackToken(ref, tok)) ? await store.findBooking(ref) : null;
+  if (!b) return res.status(404).json({ error: 'لم نجد حجزاً بهذه البيانات. تأكد من رقم الحجز ورقم الهاتف أو الجواز.' });
+  res.set('Cache-Control', 'no-store');
+  res.json({ booking: trackView(b), verified: !!(req.query.phone || req.query.passport) });
+}));
+
+function tgCancelText(b, kind, base) {
+  const first = b.passengers && b.passengers[0];
+  const o = b.outbound || {};
+  return [
+    kind === 'auto' ? `🟡 <b>إلغاء من الزبون</b> (تلقائي — حجز غير مؤكد)` : `🔴 <b>طلب إلغاء</b> — يحتاج قرار المكتب`,
+    `رقم الحجز: <code>${tgHtml(b.ref)}</code>`,
+    `PNR: ${b.pnr ? `<code>${tgHtml(b.pnr)}</code>` : 'لم يصدر'}`,
+    `المسافر: ${tgHtml(first ? first.fullName : '-')}${(b.passengers || []).length > 1 ? ` (+${b.passengers.length - 1})` : ''}`,
+    `الهاتف: <code>${tgHtml(b.contact_phone)}</code>`,
+    `الرحلة: ${tgHtml(o.origin || b.origin)} ← ${tgHtml(o.destination || b.destination)} · ${tgHtml(o.depart_date || b.depart_date)}`,
+    `الدفع: ${b.status === 'paid' ? 'مدفوع ✅' : 'غير مدفوع'} · ${Number(b.total || 0).toLocaleString('en-US')} د.ل`,
+    b.cancel_request?.reason ? `السبب: ${tgHtml(b.cancel_request.reason)}` : '',
+    kind === 'auto' ? 'ℹ️ رجعت المقاعد للرحلة تلقائياً.' : '⚠️ التذكرة تخضع لسياسة شركة الطيران — راجع الغرامات ثم «تأكيد الإلغاء» أو «رفض الطلب» من اللوحة.',
+    base ? `🗂 ${tgHtml(base)}/admin.html` : '',
+  ].filter(Boolean).join('\n');
+}
+function notifyCancel(b, kind, base) {
+  const chats = tgChats(); if (!TG_TOKEN || !chats.length) return;
+  const text = tgCancelText(b, kind, base);
+  for (const chat_id of chats) tgCall('sendMessage', { chat_id, text, parse_mode: 'HTML', disable_web_page_preview: true })
+    .then(() => console.log(`[telegram] ✓ cancel ${b.ref} → ${chat_id}`)).catch(e => console.warn(`[telegram] ✗ cancel ${b.ref}: ${e.message}`));
+}
+// إلغاء من طرف الزبون — يتطلب الهاتف أو رقم الجواز (رابط QR وحده لا يكفي للإلغاء)
+app.post('/api/track/cancel', rateLimit(10, 15 * 60_000, 'محاولات كثيرة، حاول بعد 15 دقيقة'), ah(async (req, res) => {
+  const q = req.body || {};
+  await withBookingLock(async () => {
+    const b = await findCustomerBooking(q);
+    if (!b) return res.status(404).json({ error: 'تعذر التحقق من الحجز. أدخل رقم الهاتف أو رقم الجواز المسجّل في الحجز.' });
+    const pol = cancelPolicy(b);
+    if (pol.mode === 'none') return res.status(409).json({ error: pol.reason === 'cancelled' ? 'هذا الحجز ملغي مسبقاً.'
+      : pol.reason === 'requested' ? 'طلب الإلغاء مُرسل مسبقاً وهو قيد المراجعة لدى المكتب.' : 'موعد الرحلة فات — تواصل مع المكتب مباشرة.', booking: trackView(b) });
+    const reason = String(q.reason || '').replace(/[<>\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
+    const base = process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
+    if (pol.mode === 'auto') {
+      b.booking_status = 'cancelled'; b.cancelled_at = now(); b.cancelled_by = 'customer';
+      if (reason) b.cancel_request = { at: now(), reason, prev: 'pending', resolved: 'auto' };
+    } else {
+      b.cancel_request = { at: now(), reason, prev: b.booking_status, resolved: null };
+      b.booking_status = 'cancellation_requested';
+    }
+    b.updated_at = now();
+    await store.replaceBooking(b);
+    console.log(`[customer-cancel] ${b.ref} → ${pol.mode === 'auto' ? 'cancelled' : 'requested'}`);
+    notifyCancel(b, pol.mode, base);
+    res.json({ result: pol.mode === 'auto' ? 'cancelled' : 'requested', booking: trackView(b) });
   });
 }));
 
@@ -964,7 +1049,7 @@ app.get('/api/bookings', requireAdmin, ah(async (req, res) => {
 // ---------- تصدير الحجوزات إلى Excel (CSV) ----------
 const PAY_AR = { sadad: 'سداد', tadawul: 'تداول', bank: 'تحويل مصرفي', cod: 'كاش عند الاستلام' };
 const PAY_ST_AR = { pending_cod: 'بانتظار الكاش', pending_payment: 'بانتظار الدفع', paid: 'مدفوع' };
-const BOOK_ST_AR = { pending: 'بانتظار التأكيد', confirmed: 'مؤكد', cancelled: 'ملغي' };
+const BOOK_ST_AR = { pending: 'بانتظار التأكيد', confirmed: 'مؤكد', cancelled: 'ملغي', cancellation_requested: 'مطلوب إلغاء' };
 
 app.get('/api/bookings/export.csv', requireAdmin, ah(async (req, res) => {
   const head = ['رقم الحجز', 'تاريخ الحجز', 'وقت الحجز', 'نوع الرحلة', 'شركة الطيران', 'رقم الرحلة', 'من', 'إلى',
